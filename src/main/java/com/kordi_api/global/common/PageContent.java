@@ -13,8 +13,8 @@ import lombok.NoArgsConstructor;
 @Builder
 public class PageContent<T> {
 
-    private Long totalPage;
-    private Long totalCount;
-    private Long currentPage;
-    private T contents;
+  private Long totalPage;
+  private Long totalCount;
+  private Long currentPage;
+  private T contents;
 }
