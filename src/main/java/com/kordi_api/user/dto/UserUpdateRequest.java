@@ -1,4 +1,3 @@
 package com.kordi_api.user.dto;
 
-public record UserUpdateRequest() {
-}
+public record UserUpdateRequest(String nickname, String profileImageUrl) {}
