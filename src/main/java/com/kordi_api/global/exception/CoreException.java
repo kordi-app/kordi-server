@@ -10,6 +10,14 @@ public class CoreException extends RuntimeException {
   private final Integer code;
   private final String message;
 
+  public int getHttpStatus() {
+    return this.code / 10000;
+  }
+
+  public int getDetailCode() {
+    return this.code % 10000;
+  }
+
   public CoreException(CoreExceptionCode code) {
     this.code = code.getCode();
     this.message = code.getMessage();
