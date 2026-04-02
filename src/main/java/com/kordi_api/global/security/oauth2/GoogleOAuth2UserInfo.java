@@ -1,4 +1,30 @@
 package com.kordi_api.global.security.oauth2;
 
-public class GoogleOAuth2UserInfo {
+import java.util.Map;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
+public class GoogleOAuth2UserInfo implements OAuth2UserInfo {
+
+  private final Map<String, Object> attributes;
+
+  @Override
+  public String getOauthId() {
+    return attributes.get("sub").toString();
+  }
+
+  @Override
+  public String getEmail() {
+    return (String) attributes.get("email");
+  }
+
+  @Override
+  public String getName() {
+    return (String) attributes.get("name");
+  }
+
+  @Override
+  public String getProfileImageUrl() {
+    return (String) attributes.get("picture");
+  }
 }
