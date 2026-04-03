@@ -27,6 +27,10 @@ public class UserService {
 
   @Transactional
   public UserResponse updateProfile(Long userId, UserUpdateRequest request) {
+    if (userRepository.existsByNickname(request.nickname())) {
+      throw new CoreException(CoreExceptionCode.NICKNAME_DUPLICATED);
+    }
+
     User user =
         userRepository
             .findById(userId)

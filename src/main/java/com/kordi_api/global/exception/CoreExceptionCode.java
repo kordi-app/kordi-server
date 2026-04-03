@@ -16,7 +16,8 @@ public enum CoreExceptionCode {
   INVALID_REFRESH_TOKEN(401_0001, "인증이 만료되었습니다."),
 
   // 유저 에러
-  USER_NOT_FOUND(404_0001, "유저를 찾을 수 없습니다.");
+  USER_NOT_FOUND(404_0001, "유저를 찾을 수 없습니다."),
+  NICKNAME_DUPLICATED(409_0001, "이미 사용 중인 닉네임입니다.");
 
   private final int code;
   private final String message;
