@@ -3,8 +3,10 @@ package com.kordi_api.global.security.jwt;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Date;
+import java.util.UUID;
 import javax.crypto.SecretKey;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -24,8 +26,11 @@ public class JwtTokenProvider {
     return createToken(userId, jwtProperties.getAccessTokenExpiry());
   }
 
-  public String createRefreshToken(Long userId) {
-    return createToken(userId, jwtProperties.getRefreshTokenExpiry());
+  public String createRefreshToken() {
+    UUID uuid = UUID.randomUUID();
+    return Base64.getUrlEncoder()
+        .withoutPadding()
+        .encodeToString(uuid.toString().getBytes(StandardCharsets.UTF_8));
   }
 
   private String createToken(Long userId, long expiry) {
