@@ -44,4 +44,8 @@ public class AuthService {
         LocalDateTime.now().plus(Duration.ofMillis(jwtProperties.getRefreshTokenExpiry())));
     return new TokenResponse(newAccessToken, newRefreshToken);
   }
+
+  public void logout(Long userId) {
+    refreshTokenRepository.deleteAllByUserId(userId);
+  }
 }

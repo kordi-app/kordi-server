@@ -1,10 +1,12 @@
 package com.kordi_api.user.controller;
 
 import com.kordi_api.global.common.ApiResponse;
+import com.kordi_api.global.security.CustomUserDetails;
 import com.kordi_api.user.dto.UserResponse;
 import com.kordi_api.user.dto.UserUpdateRequest;
 import com.kordi_api.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -14,15 +16,16 @@ public class UserController {
 
   private final UserService userService;
 
-  @GetMapping("/{userid}")
-  public ApiResponse<UserResponse> getUser(@PathVariable long userId) {
-    return ApiResponse.success(userService.getUser(userId));
+  @GetMapping("/me")
+  public ApiResponse<UserResponse> getUser(@AuthenticationPrincipal CustomUserDetails userDetails) {
+    return ApiResponse.success(userService.getUser(userDetails.getUser().getId()));
   }
 
-  @PatchMapping("/{userid}/profile")
+  @PatchMapping("/me/profile")
   public ApiResponse<UserResponse> updateProfile(
-      @PathVariable Long userId, @RequestBody UserUpdateRequest request) {
-    return ApiResponse.success(userService.updateProfile(userId, request));
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @RequestBody UserUpdateRequest request) {
+    return ApiResponse.success(userService.updateProfile(userDetails.getUser().getId(), request));
   }
 
   @GetMapping("/check-nickname")
