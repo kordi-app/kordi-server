@@ -1,6 +1,8 @@
 package com.kordi_api.global.security;
 
 import com.kordi_api.global.security.jwt.JwtAuthenticationFilter;
+import com.kordi_api.global.security.oauth2.CustomOAuth2UserService;
+import com.kordi_api.global.security.oauth2.OAuth2SuccessHandler;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -22,6 +24,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
+  private final CustomOAuth2UserService customOAuth2UserService;
+  private final OAuth2SuccessHandler oAuth2SuccessHandler;
 
   private final String[] publicPaths = {
     "/api/auth/**", "/api/users/check-nickname", "/health-check"
@@ -35,6 +39,11 @@ public class SecurityConfig {
         .cors(cors -> cors.configurationSource(corsConfigurationSource()))
         .authorizeHttpRequests(
             auth -> auth.requestMatchers(publicPaths).permitAll().anyRequest().authenticated())
+        .oauth2Login(
+            oauth2 ->
+                oauth2
+                    .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
+                    .successHandler(oAuth2SuccessHandler))
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
         .build();
   }

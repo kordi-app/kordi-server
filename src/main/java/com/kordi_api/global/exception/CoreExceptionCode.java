@@ -12,6 +12,9 @@ public enum CoreExceptionCode {
   UNKNOWN_ERROR(400_1001, "알 수 없는 오류가 발생했습니다."),
   INVALID_REQUEST(400_1002, "요청이 유효하지 않습니다."),
 
+  // 인증 에러
+  INVALID_REFRESH_TOKEN(401_0001, "인증이 만료되었습니다."),
+
   // 유저 에러
   USER_NOT_FOUND(404_0001, "유저를 찾을 수 없습니다.");
 
