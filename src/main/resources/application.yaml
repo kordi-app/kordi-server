@@ -17,7 +17,12 @@ spring:
             client-secret: ${GOOGLE_CLIENT_SECRET}
             scope: email, profile
 
+  sql:
+    init:
+      mode: always
+
   jpa:
+    defer-datasource-initialization: true
     hibernate:
       ddl-auto: update
     properties:

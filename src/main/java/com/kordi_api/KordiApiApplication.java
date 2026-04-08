@@ -10,4 +10,3 @@ public class KordiApiApplication {
     SpringApplication.run(KordiApiApplication.class, args);
   }
 }
-
