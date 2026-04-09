@@ -28,7 +28,7 @@ public class SecurityConfig {
   private final OAuth2SuccessHandler oAuth2SuccessHandler;
 
   private final String[] publicPaths = {
-    "/api/auth/**", "/api/users/check-nickname", "/health-check"
+    "/api/auth/**", "/api/users/check-nickname", "/api/rankings/**", "/health-check"
   };
 
   @Bean

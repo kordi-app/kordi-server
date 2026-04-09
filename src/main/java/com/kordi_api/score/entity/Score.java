@@ -24,7 +24,7 @@ public class Score extends BaseTimeEntity {
   private User user;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "user_id", nullable = false)
+  @Column(nullable = false)
   private Difficulty difficulty;
 
   @Column(nullable = false)

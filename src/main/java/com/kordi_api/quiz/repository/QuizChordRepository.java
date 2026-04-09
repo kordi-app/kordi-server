@@ -9,7 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface QuizChordRepository extends JpaRepository<QuizChord, Long> {
 
-  List<QuizChord> getQuizChords(Difficulty difficulty);
+  List<QuizChord> findByDifficulty(Difficulty difficulty);
 
   @Query(
       value = "SELECT * FROM quiz_chords WHERE difficulty = :difficulty ORDER BY RAND() LIMIT 10",

@@ -1,5 +1,5 @@
 -- EASY: Major, Minor, Seventh, Minor Seventh, Dim, Aug (12키)
-INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) VALUES
+INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) VALUES
 -- Major (12키)
 ('C', 'MAJOR', 'C Major', 'C,E,G', 'EASY'),
 ('C#', 'MAJOR', 'C# Major', 'C#,E#,G#', 'EASY'),
