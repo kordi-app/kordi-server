@@ -6,6 +6,7 @@ import com.kordi_api.quiz.entity.Difficulty;
 import com.kordi_api.score.dto.ScoreRequest;
 import com.kordi_api.score.dto.ScoreResponse;
 import com.kordi_api.score.service.ScoreService;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,7 +21,8 @@ public class ScoreController {
 
   @PostMapping
   public ApiResponse<ScoreResponse> saveScore(
-      @AuthenticationPrincipal CustomUserDetails userDetails, @RequestBody ScoreRequest request) {
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @Valid @RequestBody ScoreRequest request) {
     return ApiResponse.success(scoreService.saveScore(userDetails.getUser().getId(), request));
   }
 

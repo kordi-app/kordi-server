@@ -5,6 +5,7 @@ import com.kordi_api.global.security.CustomUserDetails;
 import com.kordi_api.user.dto.UserResponse;
 import com.kordi_api.user.dto.UserUpdateRequest;
 import com.kordi_api.user.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -24,7 +25,7 @@ public class UserController {
   @PatchMapping("/me/profile")
   public ApiResponse<UserResponse> updateProfile(
       @AuthenticationPrincipal CustomUserDetails userDetails,
-      @RequestBody UserUpdateRequest request) {
+      @Valid @RequestBody UserUpdateRequest request) {
     return ApiResponse.success(userService.updateProfile(userDetails.getUser().getId(), request));
   }
 
