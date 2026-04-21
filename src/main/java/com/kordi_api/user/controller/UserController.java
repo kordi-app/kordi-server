@@ -33,4 +33,9 @@ public class UserController {
   public ApiResponse<Boolean> checkNickname(@RequestParam String nickname) {
     return ApiResponse.success(userService.isNicknameDuplicated(nickname));
   }
+
+  @GetMapping("/search")
+  public ApiResponse<UserResponse> searchUser(@RequestParam String nickname) {
+    return ApiResponse.success(userService.searchByNickname(nickname));
+  }
 }

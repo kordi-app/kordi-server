@@ -42,4 +42,12 @@ public class UserService {
   public boolean isNicknameDuplicated(String nickname) {
     return userRepository.existsByNickname(nickname);
   }
+
+  public UserResponse searchByNickname(String nickname) {
+    User user =
+        userRepository
+            .findByNickname(nickname)
+            .orElseThrow(() -> new CoreException(CoreExceptionCode.USER_NOT_FOUND));
+    return UserResponse.from(user);
+  }
 }
