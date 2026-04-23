@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/friendships")
 @RequiredArgsConstructor
-public class FriendShipController {
+public class FriendshipController {
 
   private final FriendshipService friendshipService;
 

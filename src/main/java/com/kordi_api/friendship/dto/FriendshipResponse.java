@@ -1,6 +1,6 @@
 package com.kordi_api.friendship.dto;
 
-import com.kordi_api.friendship.entity.FriendShip;
+import com.kordi_api.friendship.entity.Friendship;
 import com.kordi_api.friendship.entity.FriendshipStatus;
 
 public record FriendshipResponse(
@@ -11,7 +11,7 @@ public record FriendshipResponse(
     String receiverNickname,
     FriendshipStatus status) {
 
-  public static FriendshipResponse from(FriendShip friendShip) {
+  public static FriendshipResponse from(Friendship friendShip) {
     return new FriendshipResponse(
         friendShip.getId(),
         friendShip.getSender().getId(),
