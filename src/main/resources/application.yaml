@@ -29,7 +29,7 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
-    show-sql: true
+    show-sql: ${SHOW_SQL:false}
 
 server:
   port: 8080
@@ -42,3 +42,5 @@ jwt:
 app:
   oauth2:
     redirect-url: ${OAUTH2_REDIRECT_URL:http://localhost:3000/api/auth/callback}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,https://www.kordi.online,https://kordi.online}
