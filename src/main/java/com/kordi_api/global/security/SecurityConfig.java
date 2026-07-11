@@ -5,6 +5,7 @@ import com.kordi_api.global.security.oauth2.CustomOAuth2UserService;
 import com.kordi_api.global.security.oauth2.OAuth2SuccessHandler;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -26,6 +27,9 @@ public class SecurityConfig {
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
   private final CustomOAuth2UserService customOAuth2UserService;
   private final OAuth2SuccessHandler oAuth2SuccessHandler;
+
+  @Value("${app.cors.allowed-origins}")
+  private List<String> allowedOrigins;
 
   private final String[] publicPaths = {
     "/api/auth/**", "/api/users/check-nickname", "/api/rankings/**", "/health-check"
@@ -51,11 +55,7 @@ public class SecurityConfig {
   @Bean
   public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration config = new CorsConfiguration();
-    config.setAllowedOrigins(
-            List.of(
-                    "http://localhost:3000",
-                    "https://kordi.online",
-                    "https://www.kordi.online"));
+    config.setAllowedOrigins(allowedOrigins);
     config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
     config.setAllowedHeaders(List.of("*"));
     config.setAllowCredentials(true);
