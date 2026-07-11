@@ -20,6 +20,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @Slf4j
 @RestControllerAdvice
@@ -93,6 +94,13 @@ public class GlobalExceptionHandler {
         detailCode,
         REQUIRED_VALUE_MISSING.getMessage() + " - 요청 본문(Request Body)이 누락되었거나 형식이 올바르지 않습니다.",
         request.getRequestURI());
+  }
+
+  @ExceptionHandler(NoResourceFoundException.class)
+  public ApiResponse<Void> handleNoResourceFound(
+      HttpServletRequest request, HttpServletResponse response) {
+    response.setStatus(HttpStatus.NOT_FOUND.value());
+    return ApiResponse.error(NOT_FOUND.getCode(), NOT_FOUND.getMessage(), request.getRequestURI());
   }
 
   @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
