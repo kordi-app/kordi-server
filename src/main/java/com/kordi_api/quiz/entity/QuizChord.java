@@ -37,6 +37,7 @@ public class QuizChord {
   public QuizChord(
       String chordKey, ChordType chordType, String name, String notes, Difficulty difficulty) {
     this.chordkey = chordKey;
+    this.chordType = chordType;
     this.name = name;
     this.notes = notes;
     this.difficulty = difficulty;
