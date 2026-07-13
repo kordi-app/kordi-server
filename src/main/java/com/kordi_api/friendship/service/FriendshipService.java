@@ -31,18 +31,23 @@ public class FriendshipService {
     User sender = getUserOrThrow(senderId);
     User receiver = getUserOrThrow(receiverId);
 
-    if (friendshipRepository.existsBetween(sender, receiver)) {
-      throw new CoreException(CoreExceptionCode.FRIENDSHIP_ALREADY_EXISTS);
-    }
-
     Friendship friendship =
-        Friendship.builder()
-            .sender(sender)
-            .receiver(receiver)
-            .status(FriendshipStatus.PENDING)
-            .build();
+        friendshipRepository
+            .findBetween(sender, receiver)
+            .map(
+                existing -> {
+                  existing.reopen(sender, receiver);
+                  return existing;
+                })
+            .orElseGet(
+                () ->
+                    friendshipRepository.save(
+                        Friendship.builder()
+                            .sender(sender)
+                            .receiver(receiver)
+                            .status(FriendshipStatus.PENDING)
+                            .build()));
 
-    friendshipRepository.save(friendship);
     return FriendshipResponse.from(friendship);
   }
 

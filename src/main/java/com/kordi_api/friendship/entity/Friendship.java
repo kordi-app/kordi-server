@@ -11,7 +11,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "friendships")
+@Table(
+    name = "friendships",
+    uniqueConstraints =
+        @UniqueConstraint(
+            name = "uk_friendship_pair",
+            columnNames = {"user_low_id", "user_high_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Friendship extends BaseTimeEntity {
@@ -31,6 +36,12 @@ public class Friendship extends BaseTimeEntity {
   @Enumerated(EnumType.STRING)
   @Column
   private FriendshipStatus status;
+
+  @Column(name = "user_low_id", nullable = false)
+  private Long userLowId;
+
+  @Column(name = "user_high_id", nullable = false)
+  private Long userHighId;
 
   public void accept() {
     validatePending();
@@ -53,10 +64,25 @@ public class Friendship extends BaseTimeEntity {
     }
   }
 
+  private void assignPair() {
+    this.userLowId = Math.min(sender.getId(), receiver.getId());
+    this.userHighId = Math.max(sender.getId(), receiver.getId());
+  }
+
+  public void reopen(User sender, User receiver) {
+    if (this.status == FriendshipStatus.PENDING || this.status == FriendshipStatus.ACCEPTED) {
+      throw new CoreException(CoreExceptionCode.FRIENDSHIP_ALREADY_EXISTS);
+    }
+    this.sender = sender;
+    this.receiver = receiver;
+    this.status = FriendshipStatus.PENDING;
+  }
+
   @Builder
   public Friendship(User sender, User receiver, FriendshipStatus status) {
     this.sender = sender;
     this.receiver = receiver;
     this.status = status;
+    assignPair();
   }
 }
