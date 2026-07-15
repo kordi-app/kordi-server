@@ -27,15 +27,17 @@ public class UserService {
 
   @Transactional
   public UserResponse updateProfile(Long userId, UserUpdateRequest request) {
-    if (userRepository.existsByNickname(request.nickname())) {
-      throw new CoreException(CoreExceptionCode.NICKNAME_DUPLICATED);
-    }
-
     User user =
         userRepository
             .findById(userId)
             .orElseThrow(() -> new CoreException(CoreExceptionCode.USER_NOT_FOUND));
-    user.updateProfile(request.nickname(), request.profileImageUrl());
+
+    if (!user.getNickname().equals(request.nickname())
+        && userRepository.existsByNickname(request.nickname())) {
+      throw new CoreException(CoreExceptionCode.NICKNAME_DUPLICATED);
+    }
+
+    user.updateNickname(request.nickname());
     return UserResponse.from(user);
   }
 
