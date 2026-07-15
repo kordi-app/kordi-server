@@ -17,7 +17,7 @@ public class QuizChord {
   private Long id;
 
   @Column(nullable = false, length = 10)
-  private String chordkey;
+  private String chordKey;
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false)
@@ -36,7 +36,7 @@ public class QuizChord {
   @Builder
   public QuizChord(
       String chordKey, ChordType chordType, String name, String notes, Difficulty difficulty) {
-    this.chordkey = chordKey;
+    this.chordKey = chordKey;
     this.chordType = chordType;
     this.name = name;
     this.notes = notes;

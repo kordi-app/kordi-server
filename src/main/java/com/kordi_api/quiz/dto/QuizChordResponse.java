@@ -14,7 +14,7 @@ public record QuizChordResponse(
   public static QuizChordResponse from(QuizChord quizChord) {
     return new QuizChordResponse(
         quizChord.getId(),
-        quizChord.getChordkey(),
+        quizChord.getChordKey(),
         quizChord.getChordType(),
         quizChord.getName(),
         quizChord.getNotes(),

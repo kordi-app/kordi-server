@@ -1,5 +1,5 @@
 -- EASY: Major, Minor, Seventh, Minor Seventh, Dim, Aug
-INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) VALUES
+INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) VALUES
 -- Major
 ('C', 'MAJOR', 'C', 'C,E,G', 'EASY'),
 ('C#', 'MAJOR', 'C#', 'C#,F,G#', 'EASY'),
@@ -80,7 +80,7 @@ INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) V
 ('B', 'AUG', 'Baug', 'B,D#,G', 'EASY');
 
 -- MEDIUM: Major Seventh, Major Ninth, Sixth, Minor Sixth, Sus2, Sus4, Ninth, Minor Ninth
-INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) VALUES
+INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) VALUES
 -- Major Seventh
 ('C', 'MAJOR_SEVENTH', 'Cmaj7', 'C,E,G,B', 'MEDIUM'),
 ('C#', 'MAJOR_SEVENTH', 'C#maj7', 'C#,F,G#,C', 'MEDIUM'),
@@ -187,7 +187,7 @@ INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) V
 ('B', 'MINOR_NINTH', 'Bm9', 'B,D,F#,A,C#', 'MEDIUM');
 
 -- HARD: Dim Seventh, Minor Seventh Flat5, Eleventh, Minor Eleventh, Thirteenth, Sixth Ninth
-INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) VALUES
+INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) VALUES
 -- Dim Seventh
 ('C', 'DIM_SEVENTH', 'Cdim7', 'C,D#,F#,A', 'HARD'),
 ('C#', 'DIM_SEVENTH', 'C#dim7', 'C#,E,G,A#', 'HARD'),
@@ -272,7 +272,7 @@ INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) V
 -- ============================================
 
 -- EASY: Power Chord
-INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) VALUES
+INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) VALUES
 ('C', 'POWER', 'C5', 'C,G', 'EASY'),
 ('C#', 'POWER', 'C#5', 'C#,G#', 'EASY'),
 ('D', 'POWER', 'D5', 'D,A', 'EASY'),
@@ -287,7 +287,7 @@ INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) V
 ('B', 'POWER', 'B5', 'B,F#', 'EASY');
 
 -- MEDIUM: Minor Major 7th, Add9, Minor Add9, 7sus4
-INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) VALUES
+INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) VALUES
 -- Minor Major Seventh
 ('C', 'MINOR_MAJOR_SEVENTH', 'CmMaj7', 'C,D#,G,B', 'MEDIUM'),
 ('C#', 'MINOR_MAJOR_SEVENTH', 'C#mMaj7', 'C#,E,G#,C', 'MEDIUM'),
@@ -342,7 +342,7 @@ INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) V
 ('B', 'SEVENTH_SUS4', 'B7sus4', 'B,E,F#,A', 'MEDIUM');
 
 -- HARD: 7#9, 7b9, 7#5, 7b5, 7alt, 7#11, maj7#11, maj13, m13
-INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) VALUES
+INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) VALUES
 -- Seventh Sharp 9
 ('C', 'SEVENTH_SHARP9', 'C7#9', 'C,E,G,A#,D#', 'HARD'),
 ('C#', 'SEVENTH_SHARP9', 'C#7#9', 'C#,F,G#,B,E', 'HARD'),
@@ -466,7 +466,7 @@ INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) V
 -- ============================================
 
 -- MEDIUM: Minor 6/9, 9sus4
-INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) VALUES
+INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) VALUES
 -- Minor Sixth Ninth
 ('C', 'MINOR_SIXTH_NINTH', 'Cm6/9', 'C,D#,G,A,D', 'MEDIUM'),
 ('C#', 'MINOR_SIXTH_NINTH', 'C#m6/9', 'C#,E,G#,A#,D#', 'MEDIUM'),
@@ -495,7 +495,7 @@ INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) V
 ('B', 'NINTH_SUS4', 'B9sus4', 'B,E,F#,A,C#', 'MEDIUM');
 
 -- HARD: aug(maj7), maj9#11, 9#5, 9b5, dim(maj7), 13sus4
-INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) VALUES
+INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) VALUES
 -- Aug Major Seventh
 ('C', 'AUG_MAJOR_SEVENTH', 'C+Maj7', 'C,E,G#,B', 'HARD'),
 ('C#', 'AUG_MAJOR_SEVENTH', 'C#+Maj7', 'C#,F,A,C', 'HARD'),
@@ -580,7 +580,7 @@ INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) V
 -- ============================================
 
 -- HARD: Minor Major 9, 13b9, 13#9, 13#11, maj13#11, 9#11
-INSERT IGNORE INTO quiz_chords (chordkey, chord_type, name, notes, difficulty) VALUES
+INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) VALUES
 -- Minor Major Ninth
 ('C', 'MINOR_MAJOR_NINTH', 'Cm(maj9)', 'C,D#,G,B,D', 'HARD'),
 ('C#', 'MINOR_MAJOR_NINTH', 'C#m(maj9)', 'C#,E,G#,C,D#', 'HARD'),
