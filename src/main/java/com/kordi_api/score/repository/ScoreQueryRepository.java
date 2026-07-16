@@ -21,13 +21,15 @@ public class ScoreQueryRepository extends Querydsl4RepositorySupport<Score> {
 
   public List<Score> findTopScoresByDifficulty(Difficulty difficulty, int limit) {
     return selectFrom(score)
+        .join(score.user)
+        .fetchJoin()
         .where(
             score.difficulty.eq(difficulty),
             score.totalScore.eq(
                 JPAExpressions.select(subScore.totalScore.max())
                     .from(subScore)
                     .where(subScore.user.eq(score.user), subScore.difficulty.eq(difficulty))))
-        .orderBy(score.totalScore.desc())
+        .orderBy(score.totalScore.desc(), score.createdAt.asc())
         .limit(limit)
         .fetch();
   }
