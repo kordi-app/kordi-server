@@ -46,6 +46,9 @@ public class WorldLobby {
   /** 클라이언트 model/regions.ts의 REGION_IDS와 짝 */
   static final Set<String> REGIONS = Set.of("hall", "neon", "cathedral", "lounge", "clouds");
 
+  /** 클라이언트 감정 표현 목록과 짝 */
+  static final Set<String> EMOTES = Set.of("wave", "clap", "dance", "sit");
+
   /** 지역 + 지역 안 채널 번호 */
   public record ChannelKey(String region, int number) {}
 
@@ -76,7 +79,7 @@ public class WorldLobby {
     Channel channel = channels.computeIfAbsent(channelNo, n -> new Channel());
 
     String id = Long.toString(sequence.incrementAndGet(), 36);
-    WorldPlayer player = new WorldPlayer(id, sanitizeName(rawName), 0, 0, 3.6, 0, null);
+    WorldPlayer player = new WorldPlayer(id, sanitizeName(rawName), 0, 0, 3.6, 0, null, null);
     channel.players.put(id, player);
     channelOf.put(id, channelNo);
     return Optional.of(new Seat(channelNo, player));
@@ -99,7 +102,8 @@ public class WorldLobby {
     }
     lastMoveAt.put(id, nowMillis);
     double y = move.y() == null ? 0 : move.y();
-    channel.players.put(id, current.moved(move.x(), y, move.z(), move.h(), move.m()));
+    String emote = move.e() != null && EMOTES.contains(move.e()) ? move.e() : null;
+    channel.players.put(id, current.moved(move.x(), y, move.z(), move.h(), move.m(), emote));
     channel.dirty.add(id);
     return true;
   }

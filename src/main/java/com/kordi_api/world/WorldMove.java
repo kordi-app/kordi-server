@@ -8,5 +8,6 @@ package com.kordi_api.world;
  * @param z 바닥 좌표 z
  * @param h 바라보는 방향(라디안)
  * @param m 밟고 있는 건반의 MIDI 번호, 건반 밖이면 null
+ * @param e 감정 표현, 없으면 null (허용 목록 밖의 값은 null로 취급)
  */
-public record WorldMove(Double x, Double y, Double z, Double h, Integer m) {}
+public record WorldMove(Double x, Double y, Double z, Double h, Integer m, String e) {}
