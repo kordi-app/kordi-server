@@ -25,10 +25,10 @@ import tools.jackson.databind.json.JsonMapper;
  * <ul>
  *   <li>서버 → 클라이언트
  *       <ul>
- *         <li>{@code welcome}: 내 id, 채널 번호, 같은 채널 접속자, 전체 접속자 수
+ *         <li>{@code welcome}: 내 id, 지역·채널 번호, 같은 채널 접속자, 전체·지역별 접속자 수
  *         <li>{@code join} / {@code leave}: 같은 채널 입·퇴장 (즉시)
  *         <li>{@code moves}: 같은 채널에서 움직인 사람들의 최신 위치 ({@value #TICK_MS}ms마다 묶어서)
- *         <li>{@code online}: 전체 접속자 수 ({@value #ONLINE_MS}ms마다)
+ *         <li>{@code online}: 전체·지역별 접속자 수 ({@value #ONLINE_MS}ms마다)
  *       </ul>
  *   <li>클라이언트 → 서버: {@link WorldMove} (x, z, h, m)
  * </ul>
@@ -54,14 +54,14 @@ public class WorldSocketHandler extends TextWebSocketHandler {
 
   @Override
   public void afterConnectionEstablished(WebSocketSession rawSession) throws IOException {
-    var seat = lobby.join(nameFrom(rawSession));
+    var seat = lobby.join(queryParam(rawSession, "region"), queryParam(rawSession, "name"));
     if (seat.isEmpty()) {
       // 전체 정원 초과: 클라이언트는 이 코드로 혼자 모드 전환
       rawSession.close(CloseStatus.SERVICE_OVERLOAD.withReason("full"));
       return;
     }
     WorldPlayer me = seat.get().player();
-    int channel = seat.get().channel();
+    WorldLobby.ChannelKey channel = seat.get().channel();
 
     WebSocketSession session =
         new ConcurrentWebSocketSessionDecorator(rawSession, SEND_TIME_LIMIT_MS, BUFFER_SIZE_LIMIT);
@@ -73,9 +73,11 @@ public class WorldSocketHandler extends TextWebSocketHandler {
         Map.of(
             "t", "welcome",
             "id", me.id(),
-            "ch", channel,
+            "region", channel.region(),
+            "ch", channel.number(),
             "players", List.copyOf(lobby.playersIn(channel)),
-            "online", lobby.totalPlayers()));
+            "online", lobby.totalPlayers(),
+            "regions", lobby.playersPerRegion()));
     broadcastToChannel(channel, Map.of("t", "join", "p", me), me.id());
   }
 
@@ -112,7 +114,7 @@ public class WorldSocketHandler extends TextWebSocketHandler {
   /** 채널마다 움직인 사람들을 한 메시지로 묶어 보낸다. 받는 쪽은 자기 id를 무시한다. */
   @Scheduled(fixedRate = TICK_MS)
   void flushMoves() {
-    for (int channel : lobby.channelNumbers()) {
+    for (WorldLobby.ChannelKey channel : lobby.channelNumbers()) {
       List<WorldPlayer> moved = lobby.drainMoves(channel);
       if (!moved.isEmpty()) {
         broadcastToChannel(channel, Map.of("t", "moves", "ps", moved), null);
@@ -125,11 +127,13 @@ public class WorldSocketHandler extends TextWebSocketHandler {
     if (sessions.isEmpty()) {
       return;
     }
-    String json = jsonMapper.writeValueAsString(Map.of("t", "online", "n", lobby.totalPlayers()));
+    String json =
+        jsonMapper.writeValueAsString(
+            Map.of("t", "online", "n", lobby.totalPlayers(), "regions", lobby.playersPerRegion()));
     sessions.values().forEach(session -> sendRaw(session, json));
   }
 
-  private void broadcastToChannel(int channel, Object payload, String exceptId) {
+  private void broadcastToChannel(WorldLobby.ChannelKey channel, Object payload, String exceptId) {
     String json = jsonMapper.writeValueAsString(payload);
     for (WorldPlayer player : lobby.playersIn(channel)) {
       if (player.id().equals(exceptId)) {
@@ -162,19 +166,19 @@ public class WorldSocketHandler extends TextWebSocketHandler {
     return System.currentTimeMillis();
   }
 
-  private static String nameFrom(WebSocketSession session) {
+  private static String queryParam(WebSocketSession session, String key) {
     if (session.getUri() == null) {
       return null;
     }
     String raw =
-        UriComponentsBuilder.fromUri(session.getUri()).build().getQueryParams().getFirst("name");
+        UriComponentsBuilder.fromUri(session.getUri()).build().getQueryParams().getFirst(key);
     if (raw == null) {
       return null;
     }
     try {
       return URLDecoder.decode(raw, StandardCharsets.UTF_8);
     } catch (IllegalArgumentException e) {
-      return null; // 깨진 인코딩이면 기본 이름
+      return null; // 깨진 인코딩이면 기본값
     }
   }
 }

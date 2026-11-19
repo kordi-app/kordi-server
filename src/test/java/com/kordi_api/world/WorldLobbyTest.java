@@ -6,6 +6,10 @@ import org.junit.jupiter.api.Test;
 
 class WorldLobbyTest {
 
+  private static WorldLobby.ChannelKey hall(int number) {
+    return new WorldLobby.ChannelKey("hall", number);
+  }
+
   private static WorldMove at(double x, Integer midi) {
     return new WorldMove(x, 0.0, 0.0, midi);
   }
@@ -14,57 +18,57 @@ class WorldLobbyTest {
   void 채널_정원이_차면_다음_채널로_배정된다() {
     WorldLobby lobby = new WorldLobby();
     for (int i = 0; i < WorldLobby.CHANNEL_CAPACITY; i++) {
-      assertThat(lobby.join("p" + i).orElseThrow().channel()).isEqualTo(1);
+      assertThat(lobby.join("hall", "p" + i).orElseThrow().channel()).isEqualTo(hall(1));
     }
-    assertThat(lobby.join("next").orElseThrow().channel()).isEqualTo(2);
-    assertThat(lobby.playersIn(1)).hasSize(WorldLobby.CHANNEL_CAPACITY);
-    assertThat(lobby.playersIn(2)).hasSize(1);
+    assertThat(lobby.join("hall", "next").orElseThrow().channel()).isEqualTo(hall(2));
+    assertThat(lobby.playersIn(hall(1))).hasSize(WorldLobby.CHANNEL_CAPACITY);
+    assertThat(lobby.playersIn(hall(2))).hasSize(1);
   }
 
   @Test
   void 앞_채널에_빈자리가_생기면_다시_채운다() {
     WorldLobby lobby = new WorldLobby();
-    String first = lobby.join("a").orElseThrow().player().id();
+    String first = lobby.join("hall", "a").orElseThrow().player().id();
     for (int i = 1; i < WorldLobby.CHANNEL_CAPACITY; i++) {
-      lobby.join("p" + i);
+      lobby.join("hall", "p" + i);
     }
-    lobby.join("ch2");
+    lobby.join("hall", "ch2");
     lobby.leave(first);
 
-    assertThat(lobby.join("back").orElseThrow().channel()).isEqualTo(1);
+    assertThat(lobby.join("hall", "back").orElseThrow().channel()).isEqualTo(hall(1));
   }
 
   @Test
   void 전체_정원을_넘으면_입장할_수_없다() {
     WorldLobby lobby = new WorldLobby();
     for (int i = 0; i < WorldLobby.MAX_TOTAL; i++) {
-      lobby.join("p" + i);
+      lobby.join("hall", "p" + i);
     }
-    assertThat(lobby.join("late")).isEmpty();
+    assertThat(lobby.join("hall", "late")).isEmpty();
     assertThat(lobby.totalPlayers()).isEqualTo(WorldLobby.MAX_TOTAL);
   }
 
   @Test
   void 움직인_사람만_묶어서_꺼내고_꺼낸_뒤에는_비운다() {
     WorldLobby lobby = new WorldLobby();
-    String a = lobby.join("a").orElseThrow().player().id();
-    lobby.join("b");
+    String a = lobby.join("hall", "a").orElseThrow().player().id();
+    lobby.join("hall", "b");
 
     assertThat(lobby.move(a, at(1.0, 60), 1_000)).isTrue();
-    assertThat(lobby.drainMoves(1))
+    assertThat(lobby.drainMoves(hall(1)))
         .singleElement()
         .satisfies(
             p -> {
               assertThat(p.id()).isEqualTo(a);
               assertThat(p.m()).isEqualTo(60);
             });
-    assertThat(lobby.drainMoves(1)).isEmpty();
+    assertThat(lobby.drainMoves(hall(1))).isEmpty();
   }
 
   @Test
   void 범위를_벗어나거나_너무_잦은_이동은_무시한다() {
     WorldLobby lobby = new WorldLobby();
-    String id = lobby.join("a").orElseThrow().player().id();
+    String id = lobby.join("hall", "a").orElseThrow().player().id();
 
     assertThat(lobby.move(id, at(999.0, null), 1_000)).isFalse();
     assertThat(lobby.move(id, at(Double.NaN, null), 1_000)).isFalse();
@@ -79,9 +83,9 @@ class WorldLobbyTest {
   @Test
   void 마지막_사람이_나가면_채널이_사라진다() {
     WorldLobby lobby = new WorldLobby();
-    String id = lobby.join("a").orElseThrow().player().id();
+    String id = lobby.join("hall", "a").orElseThrow().player().id();
 
-    assertThat(lobby.leave(id)).contains(1);
+    assertThat(lobby.leave(id)).contains(hall(1));
     assertThat(lobby.channelNumbers()).isEmpty();
     assertThat(lobby.leave(id)).isEmpty();
   }
@@ -91,5 +95,42 @@ class WorldLobbyTest {
     assertThat(WorldLobby.sanitizeName("  <b>hi</b>\n ")).isEqualTo("bhi/b");
     assertThat(WorldLobby.sanitizeName("가나다라마바사아자차카타파하")).hasSize(WorldLobby.MAX_NAME_LENGTH);
     assertThat(WorldLobby.sanitizeName("   ")).isEqualTo(WorldLobby.DEFAULT_NAME);
+  }
+
+  @Test
+  void 지역마다_채널이_따로_매겨지고_서로_보이지_않는다() {
+    WorldLobby lobby = new WorldLobby();
+    var inHall = lobby.join("hall", "a").orElseThrow();
+    var inNeon = lobby.join("neon", "b").orElseThrow();
+
+    assertThat(inHall.channel()).isEqualTo(new WorldLobby.ChannelKey("hall", 1));
+    assertThat(inNeon.channel()).isEqualTo(new WorldLobby.ChannelKey("neon", 1));
+    assertThat(lobby.playersIn(inHall.channel()))
+        .extracting(WorldPlayer::name)
+        .containsExactly("a");
+    assertThat(lobby.playersIn(inNeon.channel()))
+        .extracting(WorldPlayer::name)
+        .containsExactly("b");
+  }
+
+  @Test
+  void 모르는_지역은_기본_지역으로_들어간다() {
+    WorldLobby lobby = new WorldLobby();
+    assertThat(lobby.join("../etc", "a").orElseThrow().channel().region()).isEqualTo("hall");
+    assertThat(lobby.join(null, "b").orElseThrow().channel().region()).isEqualTo("hall");
+  }
+
+  @Test
+  void 지역별_접속자_수를_센다() {
+    WorldLobby lobby = new WorldLobby();
+    lobby.join("hall", "a");
+    lobby.join("neon", "b");
+    lobby.join("neon", "c");
+
+    assertThat(lobby.playersPerRegion())
+        .containsEntry("hall", 1)
+        .containsEntry("neon", 2)
+        .containsEntry("cathedral", 0)
+        .containsEntry("lounge", 0);
   }
 }
