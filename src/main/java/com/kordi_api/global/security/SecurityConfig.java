@@ -37,7 +37,7 @@ public class SecurityConfig {
   private List<String> allowedOrigins;
 
   private final String[] publicPaths = {
-    "/api/auth/**", "/api/users/check-nickname", "/api/rankings/**", "/health-check"
+    "/api/auth/**", "/api/users/check-nickname", "/api/rankings/**", "/health-check", "/ws/**"
   };
 
   @Bean
