@@ -11,7 +11,7 @@ class WorldLobbyTest {
   }
 
   private static WorldMove at(double x, Integer midi) {
-    return new WorldMove(x, 0.0, 0.0, midi);
+    return new WorldMove(x, 0.0, 0.0, 0.0, midi);
   }
 
   @Test
@@ -73,7 +73,7 @@ class WorldLobbyTest {
     assertThat(lobby.move(id, at(999.0, null), 1_000)).isFalse();
     assertThat(lobby.move(id, at(Double.NaN, null), 1_000)).isFalse();
     assertThat(lobby.move(id, at(0.0, 200), 1_000)).isFalse();
-    assertThat(lobby.move(id, new WorldMove(null, 0.0, 0.0, null), 1_000)).isFalse();
+    assertThat(lobby.move(id, new WorldMove(null, 0.0, 0.0, 0.0, null), 1_000)).isFalse();
     assertThat(lobby.move("nobody", at(0.0, null), 1_000)).isFalse();
 
     assertThat(lobby.move(id, at(1.0, null), 2_000)).isTrue();
@@ -133,5 +133,22 @@ class WorldLobbyTest {
         .containsEntry("cathedral", 0)
         .containsEntry("lounge", 0)
         .containsEntry("clouds", 0);
+  }
+
+  @Test
+  void 높이는_생략하면_0이고_범위를_벗어나면_무시한다() {
+    WorldLobby lobby = new WorldLobby();
+    String id = lobby.join("clouds", "a").orElseThrow().player().id();
+    var channel = new WorldLobby.ChannelKey("clouds", 1);
+
+    assertThat(lobby.move(id, new WorldMove(1.0, null, 0.0, 0.0, null), 1_000)).isTrue();
+    assertThat(lobby.drainMoves(channel)).singleElement().extracting(WorldPlayer::y).isEqualTo(0.0);
+
+    assertThat(lobby.move(id, new WorldMove(1.0, 99.0, 0.0, 0.0, null), 2_000)).isFalse();
+    assertThat(lobby.move(id, new WorldMove(1.0, 12.5, 0.0, 0.0, 60), 3_000)).isTrue();
+    assertThat(lobby.drainMoves(channel))
+        .singleElement()
+        .extracting(WorldPlayer::y)
+        .isEqualTo(12.5);
   }
 }

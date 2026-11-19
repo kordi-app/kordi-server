@@ -37,6 +37,7 @@ public class WorldLobby {
   static final long MIN_MOVE_INTERVAL_MS = 30;
   static final double MAX_ABS_X = 40;
   static final double MAX_ABS_Z = 12;
+  static final double MAX_Y = 40;
   static final int MIN_MIDI = 21;
   static final int MAX_MIDI = 108;
   static final String DEFAULT_NAME = "손님";
@@ -75,7 +76,7 @@ public class WorldLobby {
     Channel channel = channels.computeIfAbsent(channelNo, n -> new Channel());
 
     String id = Long.toString(sequence.incrementAndGet(), 36);
-    WorldPlayer player = new WorldPlayer(id, sanitizeName(rawName), 0, 3.6, 0, null);
+    WorldPlayer player = new WorldPlayer(id, sanitizeName(rawName), 0, 0, 3.6, 0, null);
     channel.players.put(id, player);
     channelOf.put(id, channelNo);
     return Optional.of(new Seat(channelNo, player));
@@ -97,7 +98,8 @@ public class WorldLobby {
       return false;
     }
     lastMoveAt.put(id, nowMillis);
-    channel.players.put(id, current.moved(move.x(), move.z(), move.h(), move.m()));
+    double y = move.y() == null ? 0 : move.y();
+    channel.players.put(id, current.moved(move.x(), y, move.z(), move.h(), move.m()));
     channel.dirty.add(id);
     return true;
   }
@@ -192,6 +194,9 @@ public class WorldLobby {
       return false;
     }
     if (Math.abs(move.x()) > MAX_ABS_X || Math.abs(move.z()) > MAX_ABS_Z) {
+      return false;
+    }
+    if (move.y() != null && (!Double.isFinite(move.y()) || move.y() < 0 || move.y() > MAX_Y)) {
       return false;
     }
     return move.m() == null || (move.m() >= MIN_MIDI && move.m() <= MAX_MIDI);
