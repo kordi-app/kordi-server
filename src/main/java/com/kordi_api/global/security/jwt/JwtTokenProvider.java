@@ -1,65 +1,66 @@
 package com.kordi_api.global.security.jwt;
 
+import com.kordi_api.user.entity.UserRole;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Date;
-import java.util.UUID;
+import java.util.Optional;
 import javax.crypto.SecretKey;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
-@RequiredArgsConstructor
 public class JwtTokenProvider {
 
+  private static final String ROLE_CLAIM = "role";
+  private static final int REFRESH_TOKEN_BYTES = 32;
+
   private final JwtProperties jwtProperties;
+  private final SecretKey signingKey;
+  private final JwtParser parser;
+  private final SecureRandom secureRandom = new SecureRandom();
 
-  private SecretKey getSigningKey() {
-    byte[] keyBytes = Base64.getDecoder().decode(jwtProperties.getSecret());
-    return Keys.hmacShaKeyFor(keyBytes);
+  public JwtTokenProvider(JwtProperties jwtProperties) {
+    this.jwtProperties = jwtProperties;
+    this.signingKey = Keys.hmacShaKeyFor(Base64.getDecoder().decode(jwtProperties.getSecret()));
+    this.parser = Jwts.parser().verifyWith(signingKey).build();
   }
 
-  public String createAccessToken(Long userId) {
-    return createToken(userId, jwtProperties.getAccessTokenExpiry());
-  }
-
-  public String createRefreshToken() {
-    UUID uuid = UUID.randomUUID();
-    return Base64.getUrlEncoder()
-        .withoutPadding()
-        .encodeToString(uuid.toString().getBytes(StandardCharsets.UTF_8));
-  }
-
-  private String createToken(Long userId, long expiry) {
+  public String createAccessToken(Long userId, UserRole role) {
     Date now = new Date();
-    Date expiryDate = new Date(now.getTime() + expiry);
-
     return Jwts.builder()
         .subject(String.valueOf(userId))
+        .claim(ROLE_CLAIM, role.name())
         .issuedAt(now)
-        .expiration(expiryDate)
-        .signWith(getSigningKey())
+        .expiration(new Date(now.getTime() + jwtProperties.getAccessTokenExpiry()))
+        .signWith(signingKey)
         .compact();
   }
 
-  public Long getUserId(String token) {
-    Claims claims = parseClaims(token);
-    return Long.valueOf(claims.getSubject());
+  /** 리프레시 토큰은 서버(DB)에서 상태를 관리하므로 JWT가 아닌 불투명한 난수 문자열을 사용한다. */
+  public String createRefreshToken() {
+    byte[] bytes = new byte[REFRESH_TOKEN_BYTES];
+    secureRandom.nextBytes(bytes);
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
   }
 
-  public boolean validateToken(String token) {
+  /** 서명·만료를 검증하고 인증 정보를 꺼낸다. 유효하지 않으면 empty. */
+  public Optional<TokenClaims> parseAccessToken(String token) {
     try {
-      parseClaims(token);
-      return true;
-    } catch (Exception e) {
-      return false;
+      Claims claims = parser.parseSignedClaims(token).getPayload();
+      Long userId = Long.valueOf(claims.getSubject());
+      String role = claims.get(ROLE_CLAIM, String.class);
+      // role 클레임 도입 이전에 발급된 토큰은 일반 유저로 취급
+      return Optional.of(
+          new TokenClaims(userId, role == null ? UserRole.USER : UserRole.valueOf(role)));
+    } catch (JwtException | IllegalArgumentException e) {
+      return Optional.empty();
     }
   }
 
-  private Claims parseClaims(String token) {
-    return Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(token).getPayload();
-  }
+  public record TokenClaims(Long userId, UserRole role) {}
 }

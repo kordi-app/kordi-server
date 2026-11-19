@@ -1,6 +1,6 @@
 package com.kordi_api.user.dto;
 
-import com.kordi_api.auth.model.OAuthProvider;
+import com.kordi_api.user.entity.OAuthProvider;
 import com.kordi_api.user.entity.User;
 
 public record UserResponse(

@@ -1,6 +1,6 @@
 package com.kordi_api.user.repository;
 
-import com.kordi_api.auth.model.OAuthProvider;
+import com.kordi_api.user.entity.OAuthProvider;
 import com.kordi_api.user.entity.User;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;

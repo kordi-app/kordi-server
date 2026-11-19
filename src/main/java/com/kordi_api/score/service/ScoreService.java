@@ -11,6 +11,7 @@ import com.kordi_api.user.entity.User;
 import com.kordi_api.user.repository.UserRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,46 +20,39 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ScoreService {
 
-  // 클라이언트 게임 규칙과 짝: 문제당 20초 × 초당 10점 (QUIZ_TIME_PER_QUESTION_MS)
-  private static final int MAX_SCORE_PER_QUESTION = 200;
+  /** 내 기록 조회 시 최대 개수 */
+  private static final Limit MY_SCORES_LIMIT = Limit.of(50);
 
   private final ScoreRepository scoreRepository;
   private final UserRepository userRepository;
 
   @Transactional
   public ScoreResponse saveScore(Long userId, ScoreRequest request) {
-    if (request.correctCount() > request.totalCount()
-        || request.totalScore() > request.correctCount() * MAX_SCORE_PER_QUESTION) {
-      throw new CoreException(CoreExceptionCode.INVALID_REQUEST);
-    }
-
     User user =
         userRepository
             .findById(userId)
             .orElseThrow(() -> new CoreException(CoreExceptionCode.USER_NOT_FOUND));
 
     Score score =
-        Score.builder()
-            .user(user)
-            .difficulty(request.difficulty())
-            .totalScore(request.totalScore())
-            .correctCount(request.correctCount())
-            .totalCount(request.totalCount())
-            .build();
+        Score.record(
+            user,
+            request.difficulty(),
+            request.totalScore(),
+            request.correctCount(),
+            request.totalCount());
 
-    scoreRepository.save(score);
-    return ScoreResponse.from(score);
+    return ScoreResponse.from(scoreRepository.save(score));
   }
 
   public List<ScoreResponse> getMyScores(Long userId) {
-    return scoreRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+    return scoreRepository.findByUserIdOrderByCreatedAtDesc(userId, MY_SCORES_LIMIT).stream()
         .map(ScoreResponse::from)
         .toList();
   }
 
   public List<ScoreResponse> getMyScoresByDifficulty(Long userId, Difficulty difficulty) {
     return scoreRepository
-        .findByUserIdAndDifficultyOrderByTotalScoreDesc(userId, difficulty)
+        .findByUserIdAndDifficultyOrderByTotalScoreDesc(userId, difficulty, MY_SCORES_LIMIT)
         .stream()
         .map(ScoreResponse::from)
         .toList();

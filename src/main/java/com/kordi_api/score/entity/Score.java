@@ -1,6 +1,9 @@
 package com.kordi_api.score.entity;
 
 import com.kordi_api.global.common.BaseTimeEntity;
+import com.kordi_api.global.exception.CoreException;
+import com.kordi_api.global.exception.CoreExceptionCode;
+import com.kordi_api.quiz.QuizRules;
 import com.kordi_api.quiz.entity.Difficulty;
 import com.kordi_api.user.entity.User;
 import jakarta.persistence.*;
@@ -36,12 +39,32 @@ public class Score extends BaseTimeEntity {
   @Column(nullable = false)
   private int totalCount;
 
-  @Builder
-  public Score(User user, Difficulty difficulty, int totalScore, int correctCount, int totalCount) {
+  @Builder(access = AccessLevel.PRIVATE)
+  private Score(
+      User user, Difficulty difficulty, int totalScore, int correctCount, int totalCount) {
     this.user = user;
     this.difficulty = difficulty;
     this.totalScore = totalScore;
     this.correctCount = correctCount;
     this.totalCount = totalCount;
+  }
+
+  /**
+   * 퀴즈 결과를 기록한다. 점수는 클라이언트가 계산하므로 게임 규칙상 불가능한 값만 걸러낸다.
+   *
+   * <p>한계: 규칙 범위 안의 조작된 점수는 막지 못한다. 완전히 막으려면 서버가 퀴즈 세션과 정답 판정을 직접 가져야 한다.
+   */
+  public static Score record(
+      User user, Difficulty difficulty, int totalScore, int correctCount, int totalCount) {
+    if (correctCount > totalCount || totalScore > correctCount * QuizRules.MAX_SCORE_PER_QUESTION) {
+      throw new CoreException(CoreExceptionCode.INVALID_REQUEST);
+    }
+    return Score.builder()
+        .user(user)
+        .difficulty(difficulty)
+        .totalScore(totalScore)
+        .correctCount(correctCount)
+        .totalCount(totalCount)
+        .build();
   }
 }

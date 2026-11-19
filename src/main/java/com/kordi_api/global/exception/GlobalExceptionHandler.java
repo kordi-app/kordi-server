@@ -1,25 +1,20 @@
 package com.kordi_api.global.exception;
 
-import static com.kordi_api.global.common.ApiResponseCode.*;
-import static com.kordi_api.global.exception.CoreExceptionCode.REQUIRED_VALUE_MISSING;
-
 import com.kordi_api.global.common.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.validation.ConstraintViolationException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @Slf4j
@@ -27,105 +22,77 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 public class GlobalExceptionHandler {
 
   @ExceptionHandler(CoreException.class)
-  public ApiResponse<Void> handleCoreException(
-      CoreException e, HttpServletRequest request, HttpServletResponse response) {
-    int statusCode = e.getHttpStatus();
-    int detailCode = e.getDetailCode();
-
-    if (statusCode >= 500) {
-      log.error("[CoreException) {} - {}", e.getCode(), e.getMessage(), e);
+  public ResponseEntity<ApiResponse<Void>> handleCoreException(
+      CoreException e, HttpServletRequest request) {
+    if (e.getErrorCode().getStatus().is5xxServerError()) {
+      log.error("[CoreException] {}", e.getMessage(), e);
     }
-
-    response.setStatus(statusCode);
-    return ApiResponse.error(detailCode, e.getMessage(), request.getRequestURI());
+    return toResponse(e.getErrorCode(), e.getMessage(), request);
   }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
-  public ApiResponse<Void> handleValidationException(
-      MethodArgumentNotValidException e, HttpServletRequest request, HttpServletResponse response) {
-    int statusCode = REQUIRED_VALUE_MISSING.getHttpStatus();
-    int detailCode = REQUIRED_VALUE_MISSING.getDetailCode();
-
-    BindingResult bindingResult = e.getBindingResult();
-    Map<String, String> fieldErrors = new HashMap<>();
-
-    if (bindingResult.hasFieldErrors()) {
-      fieldErrors =
-          bindingResult.getFieldErrors().stream()
-              .collect(
-                  Collectors.toMap(
-                      FieldError::getField,
-                      FieldError::getDefaultMessage,
-                      (existing, replacement) -> existing));
-    }
-
-    response.setStatus(statusCode);
-    return ApiResponse.error(
-        detailCode,
-        REQUIRED_VALUE_MISSING.getMessage() + " " + fieldErrors,
-        request.getRequestURI());
+  public ResponseEntity<ApiResponse<Void>> handleValidation(
+      MethodArgumentNotValidException e, HttpServletRequest request) {
+    String fields =
+        e.getBindingResult().getFieldErrors().stream()
+            .map(error -> error.getField() + ": " + defaultMessage(error))
+            .collect(Collectors.joining(", "));
+    CoreExceptionCode code = CoreExceptionCode.REQUIRED_VALUE_MISSING;
+    return toResponse(code, code.getMessage() + " [" + fields + "]", request);
   }
 
-  @ExceptionHandler(MissingServletRequestParameterException.class)
-  public ApiResponse<Void> handleMissingParameter(
-      MissingServletRequestParameterException e,
-      HttpServletRequest request,
-      HttpServletResponse response) {
-    int statusCode = REQUIRED_VALUE_MISSING.getHttpStatus();
-    int detailCode = REQUIRED_VALUE_MISSING.getDetailCode();
-
-    String message = REQUIRED_VALUE_MISSING.getMessage();
-    if (e.getParameterName() != null) {
-      message = message + " - 필수 파라미터 누락: " + e.getParameterName();
-    }
-
-    response.setStatus(statusCode);
-    return ApiResponse.error(detailCode, message, request.getRequestURI());
+  @ExceptionHandler({
+    MissingServletRequestParameterException.class,
+    MissingRequestHeaderException.class,
+    MethodArgumentTypeMismatchException.class
+  })
+  public ResponseEntity<ApiResponse<Void>> handleBadParameter(HttpServletRequest request) {
+    return toResponse(CoreExceptionCode.INVALID_REQUEST, request);
   }
 
   @ExceptionHandler(HttpMessageNotReadableException.class)
-  public ApiResponse<Void> handleMessageNotReadable(
-      HttpMessageNotReadableException e, HttpServletRequest request, HttpServletResponse response) {
-    int statusCode = REQUIRED_VALUE_MISSING.getHttpStatus();
-    int detailCode = REQUIRED_VALUE_MISSING.getDetailCode();
-
-    response.setStatus(statusCode);
-    return ApiResponse.error(
-        detailCode,
-        REQUIRED_VALUE_MISSING.getMessage() + " - 요청 본문(Request Body)이 누락되었거나 형식이 올바르지 않습니다.",
-        request.getRequestURI());
+  public ResponseEntity<ApiResponse<Void>> handleMessageNotReadable(HttpServletRequest request) {
+    return toResponse(CoreExceptionCode.MALFORMED_REQUEST_BODY, request);
   }
 
   @ExceptionHandler(NoResourceFoundException.class)
-  public ApiResponse<Void> handleNoResourceFound(
-      HttpServletRequest request, HttpServletResponse response) {
-    response.setStatus(HttpStatus.NOT_FOUND.value());
-    return ApiResponse.error(NOT_FOUND.getCode(), NOT_FOUND.getMessage(), request.getRequestURI());
+  public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(HttpServletRequest request) {
+    return toResponse(CoreExceptionCode.NOT_FOUND, request);
   }
 
   @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-  public ApiResponse<Void> handleMethodNotSupported(
-      HttpServletRequest request, HttpServletResponse response) {
-    response.setStatus(HttpStatus.METHOD_NOT_ALLOWED.value());
-    return ApiResponse.error(
-        METHOD_NOT_ALLOWED.getCode(), METHOD_NOT_ALLOWED.getMessage(), request.getRequestURI());
+  public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(HttpServletRequest request) {
+    return toResponse(CoreExceptionCode.METHOD_NOT_ALLOWED, request);
   }
 
+  /** 유니크 제약 위반 등 동시 요청 경합으로 인한 충돌 */
+  @ExceptionHandler(DataIntegrityViolationException.class)
+  public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(
+      DataIntegrityViolationException e, HttpServletRequest request) {
+    log.warn("[DataIntegrityViolation] {}", e.getMostSpecificCause().getMessage());
+    return toResponse(CoreExceptionCode.DATA_CONFLICT, request);
+  }
+
+  /** 예상하지 못한 예외: 내부 메시지는 로그에만 남기고 클라이언트에는 고정 메시지를 내려준다. */
   @ExceptionHandler(Exception.class)
-  public ApiResponse<Void> handleException(
-      Exception e, HttpServletRequest request, HttpServletResponse response) {
+  public ResponseEntity<ApiResponse<Void>> handleException(
+      Exception e, HttpServletRequest request) {
     log.error("[Exception] {}", e.getMessage(), e);
+    return toResponse(CoreExceptionCode.INTERNAL_SERVER_ERROR, request);
+  }
 
-    Throwable cause = e.getCause();
-    int statusCode = HttpStatus.INTERNAL_SERVER_ERROR.value();
-    int detailCode = INTERNAL_SERVER_ERROR.getCode();
+  private ResponseEntity<ApiResponse<Void>> toResponse(
+      CoreExceptionCode code, HttpServletRequest request) {
+    return toResponse(code, code.getMessage(), request);
+  }
 
-    if (cause instanceof ConstraintViolationException) {
-      statusCode = HttpStatus.CONFLICT.value();
-      detailCode = CONFLICT.getCode();
-    }
+  private ResponseEntity<ApiResponse<Void>> toResponse(
+      CoreExceptionCode code, String message, HttpServletRequest request) {
+    return ResponseEntity.status(code.getStatus())
+        .body(ApiResponse.error(code.getCode(), message, request.getRequestURI()));
+  }
 
-    response.setStatus(statusCode);
-    return ApiResponse.error(detailCode, e.getMessage(), request.getRequestURI());
+  private String defaultMessage(FieldError error) {
+    return error.getDefaultMessage() == null ? "invalid" : error.getDefaultMessage();
   }
 }

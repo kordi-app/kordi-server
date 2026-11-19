@@ -9,7 +9,6 @@ import com.kordi_api.global.exception.CoreExceptionCode;
 import com.kordi_api.user.entity.User;
 import com.kordi_api.user.repository.UserRepository;
 import java.util.List;
-import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,31 +21,27 @@ public class FriendshipService {
   private final FriendshipRepository friendshipRepository;
   private final UserRepository userRepository;
 
+  /**
+   * 친구 요청. 동시에 같은 쌍으로 요청이 들어오면 유니크 제약(uk_friendship_pair) 위반이 나고, GlobalExceptionHandler가 409로
+   * 응답한다.
+   */
   @Transactional
   public FriendshipResponse sendRequest(Long senderId, Long receiverId) {
     if (senderId.equals(receiverId)) {
       throw new CoreException(CoreExceptionCode.CANNOT_ADD_SELF);
     }
-
     User sender = getUserOrThrow(senderId);
     User receiver = getUserOrThrow(receiverId);
 
     Friendship friendship =
         friendshipRepository
-            .findBetween(sender, receiver)
+            .findBetween(senderId, receiverId)
             .map(
                 existing -> {
                   existing.reopen(sender, receiver);
                   return existing;
                 })
-            .orElseGet(
-                () ->
-                    friendshipRepository.save(
-                        Friendship.builder()
-                            .sender(sender)
-                            .receiver(receiver)
-                            .status(FriendshipStatus.PENDING)
-                            .build()));
+            .orElseGet(() -> friendshipRepository.save(Friendship.request(sender, receiver)));
 
     return FriendshipResponse.from(friendship);
   }
@@ -54,59 +49,45 @@ public class FriendshipService {
   @Transactional
   public FriendshipResponse acceptRequest(Long friendshipId, Long userId) {
     Friendship friendship = getFriendshipOrThrow(friendshipId);
-    validateReceiver(friendship, userId);
-    friendship.accept();
+    friendship.accept(userId);
     return FriendshipResponse.from(friendship);
   }
 
   @Transactional
   public FriendshipResponse rejectRequest(Long friendshipId, Long userId) {
     Friendship friendship = getFriendshipOrThrow(friendshipId);
-    validateReceiver(friendship, userId);
-    friendship.reject();
+    friendship.reject(userId);
     return FriendshipResponse.from(friendship);
-  }
-
-  public List<FriendshipResponse> getFriends(Long userId) {
-    User user = getUserOrThrow(userId);
-    List<Friendship> sent =
-        friendshipRepository.findBySenderAndStatus(user, FriendshipStatus.ACCEPTED);
-    List<Friendship> received =
-        friendshipRepository.findByReceiverAndStatus(user, FriendshipStatus.ACCEPTED);
-
-    return Stream.concat(
-            sent.stream().map(FriendshipResponse::from),
-            received.stream().map(FriendshipResponse::from))
-        .toList();
-  }
-
-  public List<FriendshipResponse> getSentRequests(Long userId) {
-    User user = getUserOrThrow(userId);
-    return friendshipRepository.findBySenderAndStatus(user, FriendshipStatus.PENDING).stream()
-        .map(FriendshipResponse::from)
-        .toList();
-  }
-
-  public List<FriendshipResponse> getReceivedRequests(Long userId) {
-    User user = getUserOrThrow(userId);
-    return friendshipRepository.findByReceiverAndStatus(user, FriendshipStatus.PENDING).stream()
-        .map(FriendshipResponse::from)
-        .toList();
   }
 
   @Transactional
   public FriendshipResponse cancelRequest(Long friendshipId, Long userId) {
     Friendship friendship = getFriendshipOrThrow(friendshipId);
-    validateSender(friendship, userId);
-    friendship.cancel();
+    friendship.cancel(userId);
     return FriendshipResponse.from(friendship);
   }
 
   @Transactional
   public void deleteFriendship(Long friendshipId, Long userId) {
     Friendship friendship = getFriendshipOrThrow(friendshipId);
-    validateInvolved(friendship, userId);
+    friendship.validateInvolved(userId);
     friendshipRepository.delete(friendship);
+  }
+
+  public List<FriendshipResponse> getFriends(Long userId) {
+    return toResponses(friendshipRepository.findAllInvolving(userId, FriendshipStatus.ACCEPTED));
+  }
+
+  public List<FriendshipResponse> getSentRequests(Long userId) {
+    return toResponses(friendshipRepository.findAllSent(userId, FriendshipStatus.PENDING));
+  }
+
+  public List<FriendshipResponse> getReceivedRequests(Long userId) {
+    return toResponses(friendshipRepository.findAllReceived(userId, FriendshipStatus.PENDING));
+  }
+
+  private List<FriendshipResponse> toResponses(List<Friendship> friendships) {
+    return friendships.stream().map(FriendshipResponse::from).toList();
   }
 
   private User getUserOrThrow(Long userId) {
@@ -117,26 +98,7 @@ public class FriendshipService {
 
   private Friendship getFriendshipOrThrow(Long friendshipId) {
     return friendshipRepository
-        .findById(friendshipId)
+        .findWithUsersById(friendshipId)
         .orElseThrow(() -> new CoreException(CoreExceptionCode.FRIENDSHIP_NOT_FOUND));
-  }
-
-  private void validateReceiver(Friendship friendship, Long userId) {
-    if (!friendship.getReceiver().getId().equals(userId)) {
-      throw new CoreException(CoreExceptionCode.INVALID_REQUEST);
-    }
-  }
-
-  private void validateSender(Friendship friendship, Long userId) {
-    if (!friendship.getSender().getId().equals(userId)) {
-      throw new CoreException(CoreExceptionCode.INVALID_REQUEST);
-    }
-  }
-
-  private void validateInvolved(Friendship friendship, Long userId) {
-    if (!friendship.getSender().getId().equals(userId)
-        && !friendship.getReceiver().getId().equals(userId)) {
-      throw new CoreException(CoreExceptionCode.INVALID_REQUEST);
-    }
   }
 }

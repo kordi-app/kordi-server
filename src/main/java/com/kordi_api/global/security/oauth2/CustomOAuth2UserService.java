@@ -1,6 +1,6 @@
 package com.kordi_api.global.security.oauth2;
 
-import com.kordi_api.auth.model.OAuthProvider;
+import com.kordi_api.user.entity.OAuthProvider;
 import com.kordi_api.user.entity.User;
 import com.kordi_api.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;

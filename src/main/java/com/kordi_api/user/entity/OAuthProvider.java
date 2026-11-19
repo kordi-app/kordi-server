@@ -1,4 +1,4 @@
-package com.kordi_api.auth.model;
+package com.kordi_api.user.entity;
 
 import java.util.Locale;
 

@@ -1,6 +1,5 @@
 package com.kordi_api.user.entity;
 
-import com.kordi_api.auth.model.OAuthProvider;
 import com.kordi_api.global.common.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;

@@ -1,3 +1,5 @@
 package com.kordi_api.friendship.dto;
 
-public record FriendshipRequest(Long receiverId) {}
+import jakarta.validation.constraints.NotNull;
+
+public record FriendshipRequest(@NotNull Long receiverId) {}

@@ -4,10 +4,10 @@ import com.kordi_api.friendship.dto.FriendshipRequest;
 import com.kordi_api.friendship.dto.FriendshipResponse;
 import com.kordi_api.friendship.service.FriendshipService;
 import com.kordi_api.global.common.ApiResponse;
-import com.kordi_api.global.security.CustomUserDetails;
+import com.kordi_api.global.security.LoginUser;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -19,53 +19,46 @@ public class FriendshipController {
 
   @PostMapping
   public ApiResponse<FriendshipResponse> sendRequest(
-      @AuthenticationPrincipal CustomUserDetails userDetails,
-      @RequestBody FriendshipRequest request) {
-    return ApiResponse.success(
-        friendshipService.sendRequest(userDetails.getUser().getId(), request.receiverId()));
+      @LoginUser Long userId, @Valid @RequestBody FriendshipRequest request) {
+    return ApiResponse.success(friendshipService.sendRequest(userId, request.receiverId()));
   }
 
   @GetMapping
-  public ApiResponse<List<FriendshipResponse>> getFriends(
-      @AuthenticationPrincipal CustomUserDetails userDetails) {
-    return ApiResponse.success(friendshipService.getFriends(userDetails.getUser().getId()));
+  public ApiResponse<List<FriendshipResponse>> getFriends(@LoginUser Long userId) {
+    return ApiResponse.success(friendshipService.getFriends(userId));
   }
 
   @GetMapping("/sent")
-  public ApiResponse<List<FriendshipResponse>> getSentRequests(
-      @AuthenticationPrincipal CustomUserDetails userDetails) {
-    return ApiResponse.success(friendshipService.getSentRequests(userDetails.getUser().getId()));
+  public ApiResponse<List<FriendshipResponse>> getSentRequests(@LoginUser Long userId) {
+    return ApiResponse.success(friendshipService.getSentRequests(userId));
   }
 
   @GetMapping("/received")
-  public ApiResponse<List<FriendshipResponse>> getReceivedRequests(
-      @AuthenticationPrincipal CustomUserDetails userDetails) {
-    return ApiResponse.success(
-        friendshipService.getReceivedRequests(userDetails.getUser().getId()));
+  public ApiResponse<List<FriendshipResponse>> getReceivedRequests(@LoginUser Long userId) {
+    return ApiResponse.success(friendshipService.getReceivedRequests(userId));
   }
 
   @PatchMapping("/{id}/accept")
   public ApiResponse<FriendshipResponse> acceptRequest(
-      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long id) {
-    return ApiResponse.success(friendshipService.acceptRequest(id, userDetails.getUser().getId()));
+      @LoginUser Long userId, @PathVariable Long id) {
+    return ApiResponse.success(friendshipService.acceptRequest(id, userId));
   }
 
   @PatchMapping("/{id}/reject")
   public ApiResponse<FriendshipResponse> rejectRequest(
-      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long id) {
-    return ApiResponse.success(friendshipService.rejectRequest(id, userDetails.getUser().getId()));
+      @LoginUser Long userId, @PathVariable Long id) {
+    return ApiResponse.success(friendshipService.rejectRequest(id, userId));
   }
 
   @PatchMapping("/{id}/cancel")
   public ApiResponse<FriendshipResponse> cancelRequest(
-      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long id) {
-    return ApiResponse.success(friendshipService.cancelRequest(id, userDetails.getUser().getId()));
+      @LoginUser Long userId, @PathVariable Long id) {
+    return ApiResponse.success(friendshipService.cancelRequest(id, userId));
   }
 
   @DeleteMapping("/{id}")
-  public ApiResponse<Void> deleteFriendship(
-      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long id) {
-    friendshipService.deleteFriendship(id, userDetails.getUser().getId());
-    return ApiResponse.success(null);
+  public ApiResponse<Void> deleteFriendship(@LoginUser Long userId, @PathVariable Long id) {
+    friendshipService.deleteFriendship(id, userId);
+    return ApiResponse.success();
   }
 }

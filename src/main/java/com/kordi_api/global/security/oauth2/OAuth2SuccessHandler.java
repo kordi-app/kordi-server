@@ -1,18 +1,14 @@
 package com.kordi_api.global.security.oauth2;
 
-import com.kordi_api.auth.entity.RefreshToken;
-import com.kordi_api.auth.model.OAuthProvider;
-import com.kordi_api.auth.repository.RefreshTokenRepository;
-import com.kordi_api.global.security.jwt.JwtProperties;
-import com.kordi_api.global.security.jwt.JwtTokenProvider;
+import com.kordi_api.auth.dto.TokenResponse;
+import com.kordi_api.auth.service.AuthService;
+import com.kordi_api.user.entity.OAuthProvider;
 import com.kordi_api.user.entity.User;
 import com.kordi_api.user.repository.UserRepository;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.time.Duration;
-import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
@@ -26,10 +22,8 @@ import org.springframework.web.util.WebUtils;
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
-  private final JwtTokenProvider jwtTokenProvider;
+  private final AuthService authService;
   private final UserRepository userRepository;
-  private final RefreshTokenRepository refreshTokenRepository;
-  private final JwtProperties jwtProperties;
   private final OAuth2RedirectUriValidator redirectUriValidator;
 
   @Value("${app.oauth2.redirect-url}")
@@ -52,38 +46,14 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     User user =
         userRepository.findByOauthProviderAndOauthId(provider, userInfo.getOauthId()).orElseThrow();
 
-    String accessToken = jwtTokenProvider.createAccessToken(user.getId());
-    String refreshToken = jwtTokenProvider.createRefreshToken();
-
-    RefreshToken savedToken =
-        refreshTokenRepository
-            .findByUserId(user.getId())
-            .map(
-                token -> {
-                  token.updateToken(
-                      refreshToken,
-                      LocalDateTime.now()
-                          .plus(Duration.ofMillis(jwtProperties.getRefreshTokenExpiry())));
-                  return token;
-                })
-            .orElseGet(
-                () ->
-                    RefreshToken.builder()
-                        .token(refreshToken)
-                        .user(user)
-                        .expiredAt(
-                            LocalDateTime.now()
-                                .plus(Duration.ofMillis(jwtProperties.getRefreshTokenExpiry())))
-                        .build());
-
-    refreshTokenRepository.save(savedToken);
+    TokenResponse tokens = authService.issueTokens(user);
 
     String url =
         resolveRedirectUrl(request, response)
             + "?accessToken="
-            + accessToken
+            + tokens.accessToken()
             + "&refreshToken="
-            + refreshToken;
+            + tokens.refreshToken();
 
     getRedirectStrategy().sendRedirect(request, response, url);
   }
