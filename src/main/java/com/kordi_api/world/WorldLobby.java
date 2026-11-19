@@ -44,7 +44,7 @@ public class WorldLobby {
   static final String DEFAULT_REGION = "hall";
 
   /** 클라이언트 model/regions.ts의 REGION_IDS와 짝 */
-  static final Set<String> REGIONS = Set.of("hall", "neon", "cathedral", "lounge", "clouds");
+  static final Set<String> REGIONS = Set.of("hall", "neon", "cathedral", "lounge", "clouds", "night");
 
   /** 클라이언트 감정 표현 목록과 짝 */
   static final Set<String> EMOTES = Set.of("wave", "clap", "dance", "sit");
