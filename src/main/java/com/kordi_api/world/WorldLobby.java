@@ -35,8 +35,8 @@ public class WorldLobby {
   static final int MAX_TOTAL = 1_000;
   static final int MAX_NAME_LENGTH = 12;
   static final long MIN_MOVE_INTERVAL_MS = 30;
-  static final double MAX_ABS_X = 40;
-  static final double MAX_ABS_Z = 12;
+  static final double MAX_ABS_X = 70;
+  static final double MAX_ABS_Z = 30;
   static final double MAX_Y = 40;
   static final int MIN_MIDI = 21;
   static final int MAX_MIDI = 108;
