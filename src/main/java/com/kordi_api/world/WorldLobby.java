@@ -43,7 +43,7 @@ public class WorldLobby {
   static final String DEFAULT_REGION = "hall";
 
   /** 클라이언트 model/regions.ts의 REGION_IDS와 짝 */
-  static final Set<String> REGIONS = Set.of("hall", "neon", "cathedral", "lounge");
+  static final Set<String> REGIONS = Set.of("hall", "neon", "cathedral", "lounge", "clouds");
 
   /** 지역 + 지역 안 채널 번호 */
   public record ChannelKey(String region, int number) {}

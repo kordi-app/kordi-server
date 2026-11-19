@@ -131,6 +131,7 @@ class WorldLobbyTest {
         .containsEntry("hall", 1)
         .containsEntry("neon", 2)
         .containsEntry("cathedral", 0)
-        .containsEntry("lounge", 0);
+        .containsEntry("lounge", 0)
+        .containsEntry("clouds", 0);
   }
 }
