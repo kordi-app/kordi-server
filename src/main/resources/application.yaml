@@ -21,6 +21,13 @@ spring:
     init:
       mode: always
 
+  # several scheduler threads: the world's 100 ms move flush must not wait behind a slow
+  # socket write or the ticket/run sweeps (the default is a single thread)
+  task:
+    scheduling:
+      pool:
+        size: 4
+
   jpa:
     defer-datasource-initialization: true
     hibernate:

@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -136,15 +135,6 @@ public class WorldSocketHandler extends TextWebSocketHandler {
     }
   }
 
-  /** 같은 유저가 두 탭에서 동시에 첫 완주하면 한쪽이 유니크 제약에 걸린다: 한 번 더 하면 이번엔 기존 기록 갱신으로 처리된다. */
-  private CourseResult finishWithRetry(Long userId, CourseTimer.Finish finish) {
-    try {
-      return courseRecordService.finish(userId, finish.course(), finish.millis());
-    } catch (DataIntegrityViolationException e) {
-      return courseRecordService.finish(userId, finish.course(), finish.millis());
-    }
-  }
-
   /** 회원임이 밝혀지면 저장된 모습을 입혀 같은 채널에 알린다. */
   private void showLook(String playerId, Long userId) {
     WorldLook look;
@@ -192,7 +182,7 @@ public class WorldSocketHandler extends TextWebSocketHandler {
               Long userId = (Long) rawSession.getAttributes().get(USER_ID);
               CourseResult result;
               try {
-                result = finishWithRetry(userId, finish);
+                result = courseRecordService.finish(userId, finish.course(), finish.millis());
               } catch (RuntimeException e) {
                 log.warn("[World] course record failed: {}", e.getMessage());
                 return;
@@ -291,15 +281,20 @@ public class WorldSocketHandler extends TextWebSocketHandler {
    * 있으므로 쓰지 않는다.
    */
   static String clientIp(WebSocketSession session) {
+    var remote = session.getRemoteAddress();
+    var address = remote == null ? null : remote.getAddress();
+    if (address == null) {
+      return "unknown";
+    }
+    // X-Forwarded-For is only believed from our own proxy (same host or docker network);
+    // a client reaching the app directly could otherwise claim any address and dodge the limit
+    boolean fromProxy = address.isLoopbackAddress() || address.isSiteLocalAddress();
     String forwarded = session.getHandshakeHeaders().getFirst("X-Forwarded-For");
-    if (forwarded != null && !forwarded.isBlank()) {
+    if (fromProxy && forwarded != null && !forwarded.isBlank()) {
       String[] hops = forwarded.split(",");
       return hops[hops.length - 1].strip();
     }
-    var remote = session.getRemoteAddress();
-    return remote == null || remote.getAddress() == null
-        ? "unknown"
-        : remote.getAddress().getHostAddress();
+    return address.getHostAddress();
   }
 
   private static long now() {

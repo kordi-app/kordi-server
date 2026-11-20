@@ -6,6 +6,7 @@ import com.kordi_api.course.dto.CourseResult;
 import com.kordi_api.course.entity.Course;
 import com.kordi_api.course.entity.CourseRecord;
 import com.kordi_api.course.repository.CourseRecordRepository;
+import com.kordi_api.global.common.RecordWriter;
 import com.kordi_api.user.repository.UserRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -28,10 +29,14 @@ public class CourseRecordService {
   private final CourseRecordRepository courseRecordRepository;
   private final UserRepository userRepository;
   private final CharacterService characterService;
+  private final RecordWriter recordWriter;
 
-  /** 완주 기록 반영. userId가 null(비회원)이면 저장 없이 순위만 알려준다. */
-  @Transactional
+  /** 완주 기록 반영. userId가 null(비회원)이면 저장 없이 순위만 알려준다. 동시 첫 완주 경합은 {@link RecordWriter}가 처리한다. */
   public CourseResult finish(Long userId, Course course, long timeMs) {
+    return recordWriter.write(() -> record(userId, course, timeMs));
+  }
+
+  private CourseResult record(Long userId, Course course, long timeMs) {
     long rank =
         (userId == null
                 ? courseRecordRepository.countByCourseAndTimeMsLessThanEqual(course, timeMs)

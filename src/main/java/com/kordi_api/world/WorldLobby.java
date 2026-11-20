@@ -113,9 +113,13 @@ public class WorldLobby {
       return false;
     }
     channel.dirty.add(id);
-    if (channelOf.containsKey(id)) {
-      lastMoveAt.put(id, nowMillis);
-    }
+    // only while still seated: a leave racing this move must not leave an orphan entry
+    channelOf.computeIfPresent(
+        id,
+        (key, seat) -> {
+          lastMoveAt.put(id, nowMillis);
+          return seat;
+        });
     return true;
   }
 

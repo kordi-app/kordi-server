@@ -7,6 +7,7 @@ import com.kordi_api.character.entity.CharacterCatalog;
 import com.kordi_api.character.repository.CharacterAppearanceRepository;
 import com.kordi_api.course.entity.Course;
 import com.kordi_api.course.repository.CourseRecordRepository;
+import com.kordi_api.global.common.RecordWriter;
 import com.kordi_api.global.exception.CoreException;
 import com.kordi_api.global.exception.CoreExceptionCode;
 import com.kordi_api.user.entity.User;
@@ -28,6 +29,7 @@ public class CharacterService {
   private final CourseRecordRepository courseRecordRepository;
   private final UserRepository userRepository;
   private final ApplicationEventPublisher events;
+  private final RecordWriter recordWriter;
 
   @Transactional(readOnly = true)
   public CharacterResponse get(Long userId) {
@@ -39,8 +41,15 @@ public class CharacterService {
     return new CharacterResponse(toDto(appearance), unlocked(userId));
   }
 
-  @Transactional
+  /**
+   * Two first saves racing (two tabs) are settled by {@link RecordWriter}: the loser retries as an
+   * update.
+   */
   public CharacterResponse update(Long userId, AppearanceDto request) {
+    return recordWriter.write(() -> applyUpdate(userId, request));
+  }
+
+  private CharacterResponse applyUpdate(Long userId, AppearanceDto request) {
     User user = findUser(userId);
     List<String> unlocked = unlocked(userId);
     validate(request, unlocked);

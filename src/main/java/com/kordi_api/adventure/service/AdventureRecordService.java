@@ -5,6 +5,7 @@ import com.kordi_api.adventure.dto.AdventureRecordRequest;
 import com.kordi_api.adventure.dto.AdventureResult;
 import com.kordi_api.adventure.entity.AdventureRecord;
 import com.kordi_api.adventure.repository.AdventureRecordRepository;
+import com.kordi_api.global.common.RecordWriter;
 import com.kordi_api.global.exception.CoreException;
 import com.kordi_api.global.exception.CoreExceptionCode;
 import com.kordi_api.user.repository.UserRepository;
@@ -25,19 +26,39 @@ public class AdventureRecordService {
 
   private final AdventureRecordRepository adventureRecordRepository;
   private final UserRepository userRepository;
+  private final AdventureRunService runService;
+  private final RecordWriter recordWriter;
+
+  /** 판 시작: 서버가 시작 시각을 기억한다 (결과의 판 길이는 이것으로 잰다). */
+  public String startRun(Long userId) {
+    return runService.start(userId, System.currentTimeMillis());
+  }
 
   /**
-   * 한 판 결과 반영. 첫 기록이거나 더 많이 물리쳤으면 저장한다.
-   *
-   * <p>같은 유저의 동시 첫 제출은 유니크 제약 위반(DataIntegrityViolationException)으로 끝날 수 있으니 호출 측에서 한 번 다시 부른다 (그때는
-   * 행이 있어 잠금 경로로 간다).
+   * 한 판 결과 반영. 판 길이는 서버가 잰 값. 첫 기록이거나 더 많이 물리쳤으면 저장한다 (0마리는 순위만 알려주고 저장하지 않음). 동시 첫 기록 경합은 {@link
+   * RecordWriter}가 처리한다.
    */
-  @Transactional
   public AdventureResult submit(Long userId, AdventureRecordRequest request) {
-    request.validate();
-    int defeated = request.defeated();
+    long durationMs =
+        runService
+            .finish(userId, request.runId(), System.currentTimeMillis())
+            .orElseThrow(() -> new CoreException(CoreExceptionCode.INVALID_REQUEST));
+    request.validate(durationMs);
+    return recordWriter.write(() -> save(userId, request.defeated(), durationMs));
+  }
+
+  private AdventureResult save(Long userId, int defeated, long durationMs) {
     LocalDateTime now = LocalDateTime.now();
     long rank = adventureRecordRepository.countAhead(userId, defeated, now) + 1;
+    if (defeated == 0) {
+      // nothing beaten: tell them where it stands, but don't put an empty run on the board
+      int best =
+          adventureRecordRepository
+              .findForUpdate(userId)
+              .map(AdventureRecord::getDefeated)
+              .orElse(0);
+      return new AdventureResult(0, best, rank, false);
+    }
 
     var existing = adventureRecordRepository.findForUpdate(userId);
     if (existing.isEmpty()) {
@@ -46,11 +67,11 @@ public class AdventureRecordService {
               .findById(userId)
               .orElseThrow(() -> new CoreException(CoreExceptionCode.USER_NOT_FOUND));
       adventureRecordRepository.saveAndFlush(
-          AdventureRecord.first(user, defeated, request.durationMs(), now));
+          AdventureRecord.first(user, defeated, durationMs, now));
       return new AdventureResult(defeated, defeated, rank, true);
     }
     AdventureRecord record = existing.get();
-    boolean improved = record.improve(defeated, request.durationMs(), now);
+    boolean improved = record.improve(defeated, durationMs, now);
     return new AdventureResult(defeated, record.getDefeated(), rank, improved);
   }
 
