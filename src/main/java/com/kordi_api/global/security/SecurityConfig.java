@@ -41,6 +41,7 @@ public class SecurityConfig {
     "/api/users/check-nickname",
     "/api/rankings/**",
     "/api/course-rankings",
+    "/api/adventure/rankings",
     "/health-check",
     "/ws/**"
   };
