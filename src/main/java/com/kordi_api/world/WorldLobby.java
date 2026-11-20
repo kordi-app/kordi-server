@@ -100,15 +100,22 @@ public class WorldLobby {
       return false;
     }
     Channel channel = channels.get(channelNo);
-    WorldPlayer current = channel == null ? null : channel.players.get(id);
-    if (current == null) {
+    if (channel == null) {
       return false;
     }
-    lastMoveAt.put(id, nowMillis);
     double y = move.y() == null ? 0 : move.y();
     String emote = move.e() != null && EMOTES.contains(move.e()) ? move.e() : null;
-    channel.players.put(id, current.moved(move.x(), y, move.z(), move.h(), move.m(), emote));
+    // computeIfPresent: a player who left (another thread) mid-move must not be put back as a ghost
+    WorldPlayer updated =
+        channel.players.computeIfPresent(
+            id, (key, current) -> current.moved(move.x(), y, move.z(), move.h(), move.m(), emote));
+    if (updated == null) {
+      return false;
+    }
     channel.dirty.add(id);
+    if (channelOf.containsKey(id)) {
+      lastMoveAt.put(id, nowMillis);
+    }
     return true;
   }
 

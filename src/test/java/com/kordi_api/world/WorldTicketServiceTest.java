@@ -26,4 +26,19 @@ class WorldTicketServiceTest {
     assertThat(service.redeem("nope", 0)).isEmpty();
     assertThat(service.redeem(null, 0)).isEmpty();
   }
+
+  @Test
+  void 새로_발급하면_이전_입장권은_무효가_된다() {
+    String first = service.issue(7L, 0);
+    String second = service.issue(7L, 10);
+    assertThat(service.redeem(first, 20)).isEmpty();
+    assertThat(service.redeem(second, 20)).contains(7L);
+  }
+
+  @Test
+  void 만료된_입장권은_정리된다() {
+    String ticket = service.issue(7L, 0);
+    service.sweep(WorldTicketService.TTL_MS + 1);
+    assertThat(service.redeem(ticket, 0)).isEmpty();
+  }
 }

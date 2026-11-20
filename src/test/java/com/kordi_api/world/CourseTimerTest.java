@@ -70,4 +70,35 @@ class CourseTimerTest {
     timer.track("a", "hall", 0, 0, 0, 0);
     assertThat(timer.track("a", "hall", 0, 19.0, 0, 60_000)).isEmpty();
   }
+
+  @Test
+  void 공중에_떠서_빠르게_솟아오르면_무효다() {
+    timer.track("a", "clouds", -6, 0, 2.6, 0);
+    timer.track("a", "clouds", -5.5, 0.8, 0, 100);
+    long t = 100;
+    double y = 0.8;
+    // 30ms마다 1.5씩: 초당 50 상승 — 예산이 바로 바닥난다 (최소 시간을 넘겨 기다렸다 올라가도)
+    t += 20_000;
+    timer.track("a", "clouds", -5.5, y, 0, t);
+    while (y < 19.0) {
+      t += 30;
+      y = Math.min(19.0, y + 1.5);
+      var finish = timer.track("a", "clouds", -5.5, y, 0, t);
+      if (y >= 19.0) assertThat(finish).isEmpty();
+    }
+  }
+
+  @Test
+  void 코스_영역을_벗어나면_무효다() {
+    timer.track("a", "clouds", -6, 0, 2.6, 0);
+    timer.track("a", "clouds", -5.5, 0.8, 0, 300);
+    long t = 300;
+    double y = 0.8;
+    while (y < 19.0 - 0.3) {
+      t += 400;
+      y += 0.3;
+      timer.track("a", "clouds", y > 5 && y < 6 ? -14 : -5.5, y, 0, t); // 잠깐 코스 밖
+    }
+    assertThat(timer.track("a", "clouds", -5.5, 19.0, 0, t + 400)).isEmpty();
+  }
 }

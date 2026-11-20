@@ -13,9 +13,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -57,6 +59,7 @@ public class WorldSocketHandler extends TextWebSocketHandler {
 
   private static final String PLAYER_ID = "playerId";
   private static final String USER_ID = "userId";
+  private static final String CLIENT_IP = "clientIp";
   private static final int SEND_TIME_LIMIT_MS = 2_000;
   private static final int BUFFER_SIZE_LIMIT = 64 * 1024;
   private static final int MAX_INCOMING_LENGTH = 256;
@@ -66,11 +69,18 @@ public class WorldSocketHandler extends TextWebSocketHandler {
   private final WorldTicketService ticketService;
   private final CourseRecordService courseRecordService;
   private final CharacterService characterService;
+  private final ConnectionLimiter connectionLimiter;
   private final JsonMapper jsonMapper;
   private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
 
   @Override
   public void afterConnectionEstablished(WebSocketSession rawSession) throws IOException {
+    String ip = clientIp(rawSession);
+    if (!connectionLimiter.tryAcquire(ip)) {
+      rawSession.close(CloseStatus.POLICY_VIOLATION.withReason("too many connections"));
+      return;
+    }
+    rawSession.getAttributes().put(CLIENT_IP, ip);
     var seat = lobby.join(queryParam(rawSession, "region"), queryParam(rawSession, "name"));
     if (seat.isEmpty()) {
       // 전체 정원 초과: 클라이언트는 이 코드로 혼자 모드 전환
@@ -126,6 +136,15 @@ public class WorldSocketHandler extends TextWebSocketHandler {
     }
   }
 
+  /** 같은 유저가 두 탭에서 동시에 첫 완주하면 한쪽이 유니크 제약에 걸린다: 한 번 더 하면 이번엔 기존 기록 갱신으로 처리된다. */
+  private CourseResult finishWithRetry(Long userId, CourseTimer.Finish finish) {
+    try {
+      return courseRecordService.finish(userId, finish.course(), finish.millis());
+    } catch (DataIntegrityViolationException e) {
+      return courseRecordService.finish(userId, finish.course(), finish.millis());
+    }
+  }
+
   /** 회원임이 밝혀지면 저장된 모습을 입혀 같은 채널에 알린다. */
   private void showLook(String playerId, Long userId) {
     WorldLook look;
@@ -147,8 +166,11 @@ public class WorldSocketHandler extends TextWebSocketHandler {
                     channel, Map.of("t", "look", "id", playerId, "look", look), null));
   }
 
-  /** 꾸미기 저장·보상 장착: 그 유저가 지금 월드에 있으면 바로 모습을 바꾼다. */
-  @EventListener
+  /**
+   * 꾸미기 저장·보상 장착: 그 유저가 지금 월드에 있으면 바로 모습을 바꾼다. DB에 확정된 뒤에만 알린다 (롤백된 변경을 보여주지 않도록, 그리고 소켓 전송 동안 DB
+   * 연결을 붙잡지 않도록).
+   */
+  @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
   void onAppearanceChanged(AppearanceChanged event) {
     WorldLook look = WorldLook.of(event.appearance());
     sessions.forEach(
@@ -170,7 +192,7 @@ public class WorldSocketHandler extends TextWebSocketHandler {
               Long userId = (Long) rawSession.getAttributes().get(USER_ID);
               CourseResult result;
               try {
-                result = courseRecordService.finish(userId, finish.course(), finish.millis());
+                result = finishWithRetry(userId, finish);
               } catch (RuntimeException e) {
                 log.warn("[World] course record failed: {}", e.getMessage());
                 return;
@@ -193,6 +215,10 @@ public class WorldSocketHandler extends TextWebSocketHandler {
 
   @Override
   public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+    String ip = (String) session.getAttributes().remove(CLIENT_IP);
+    if (ip != null) {
+      connectionLimiter.release(ip);
+    }
     String id = (String) session.getAttributes().get(PLAYER_ID);
     if (id == null) {
       return;
@@ -258,6 +284,22 @@ public class WorldSocketHandler extends TextWebSocketHandler {
       // 느리거나 끊긴 클라이언트: 버퍼 초과 시 데코레이터가 세션을 닫고, 정리는 afterConnectionClosed가 맡는다
       log.debug("[World] send failed: {}", e.getMessage());
     }
+  }
+
+  /**
+   * 접속한 사람의 IP. 운영에서는 Caddy가 앞에 있어 X-Forwarded-For의 마지막 값(Caddy가 직접 본 주소)을 쓴다. 앞쪽 값은 클라이언트가 꾸밀 수
+   * 있으므로 쓰지 않는다.
+   */
+  static String clientIp(WebSocketSession session) {
+    String forwarded = session.getHandshakeHeaders().getFirst("X-Forwarded-For");
+    if (forwarded != null && !forwarded.isBlank()) {
+      String[] hops = forwarded.split(",");
+      return hops[hops.length - 1].strip();
+    }
+    var remote = session.getRemoteAddress();
+    return remote == null || remote.getAddress() == null
+        ? "unknown"
+        : remote.getAddress().getHostAddress();
   }
 
   private static long now() {

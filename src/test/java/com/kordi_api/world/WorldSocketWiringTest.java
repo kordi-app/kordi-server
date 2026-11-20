@@ -19,6 +19,7 @@ class WorldSocketWiringTest {
         .withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration.class))
         .withBean(WorldLobby.class)
         .withBean(CourseTimer.class)
+        .withBean(ConnectionLimiter.class)
         .withBean(WorldTicketService.class)
         .withBean(CourseRecordService.class, () -> mock(CourseRecordService.class))
         .withBean(CharacterService.class, () -> mock(CharacterService.class))

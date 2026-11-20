@@ -32,7 +32,12 @@ public class CourseRecordService {
   /** 완주 기록 반영. userId가 null(비회원)이면 저장 없이 순위만 알려준다. */
   @Transactional
   public CourseResult finish(Long userId, Course course, long timeMs) {
-    long rank = courseRecordRepository.countByCourseAndTimeMsLessThan(course, timeMs) + 1;
+    long rank =
+        (userId == null
+                ? courseRecordRepository.countByCourseAndTimeMsLessThanEqual(course, timeMs)
+                : courseRecordRepository.countByCourseAndTimeMsLessThanEqualAndUserIdNot(
+                    course, timeMs, userId))
+            + 1;
     if (userId == null) {
       return new CourseResult(timeMs, null, rank, false, null);
     }
@@ -41,7 +46,7 @@ public class CourseRecordService {
       return new CourseResult(timeMs, null, rank, false, null);
     }
     LocalDateTime now = LocalDateTime.now();
-    var existing = courseRecordRepository.findByUserIdAndCourse(userId, course);
+    var existing = courseRecordRepository.findForUpdate(userId, course);
     if (existing.isEmpty()) {
       courseRecordRepository.save(CourseRecord.first(user, course, timeMs, now));
       // 이 코스 첫 완주: 보상이 열리고 바로 씌워진다

@@ -74,8 +74,9 @@ public class CharacterService {
   }
 
   private List<String> unlocked(Long userId) {
+    var finished = Set.copyOf(courseRecordRepository.findCoursesByUserId(userId));
     return CharacterCatalog.REWARD_HATS.entrySet().stream()
-        .filter(e -> courseRecordRepository.findByUserIdAndCourse(userId, e.getValue()).isPresent())
+        .filter(e -> finished.contains(e.getValue()))
         .map(Map.Entry::getKey)
         .sorted()
         .toList();
