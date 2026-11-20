@@ -28,11 +28,20 @@ class WorldTicketServiceTest {
   }
 
   @Test
-  void 새로_발급하면_이전_입장권은_무효가_된다() {
+  void 탭_여러_개가_동시에_받은_입장권은_모두_쓸_수_있다() {
     String first = service.issue(7L, 0);
     String second = service.issue(7L, 10);
-    assertThat(service.redeem(first, 20)).isEmpty();
+    assertThat(service.redeem(first, 20)).contains(7L);
     assertThat(service.redeem(second, 20)).contains(7L);
+  }
+
+  @Test
+  void 너무_많이_발급하면_가장_오래된_것부터_무효가_된다() {
+    String oldest = service.issue(7L, 0);
+    for (int i = 0; i < WorldTicketService.MAX_PER_USER; i++) {
+      service.issue(7L, 1);
+    }
+    assertThat(service.redeem(oldest, 2)).isEmpty();
   }
 
   @Test
