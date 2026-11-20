@@ -1,8 +1,11 @@
 package com.kordi_api.world;
 
+import com.kordi_api.course.dto.CourseResult;
+import com.kordi_api.course.service.CourseRecordService;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,10 +33,15 @@ import tools.jackson.databind.json.JsonMapper;
  *         <li>{@code moves}: 같은 채널에서 움직인 사람들의 최신 위치 ({@value #TICK_MS}ms마다 묶어서)
  *         <li>{@code online}: 전체·지역별 접속자 수 ({@value #ONLINE_MS}ms마다)
  *       </ul>
- *   <li>클라이언트 → 서버: {@link WorldMove} (x, z, h, m)
+ *   <li>{@code record}: 점프 코스 완주 기록 (서버가 잰 시간, 역대 순위, 저장 여부)
+ *   <li>클라이언트 → 서버
+ *       <ul>
+ *         <li>{@link WorldMove} (x, y, z, h, m, e)
+ *         <li>{@code {"t":"auth","ticket":...}}: 로그인 유저임을 밝힘 ({@link WorldTicketService})
+ *       </ul>
  * </ul>
  *
- * 인증 없이 누구나 입장한다(홈 화면이 공개 페이지). 이름은 표시용이며 검증하지 않는다.
+ * 인증 없이 누구나 입장한다(홈 화면이 공개 페이지). 이름은 표시용이며 검증하지 않는다. 입장권으로 로그인을 밝힌 소켓만 코스 기록이 랭킹에 저장된다.
  */
 @Slf4j
 @Component
@@ -44,11 +52,15 @@ public class WorldSocketHandler extends TextWebSocketHandler {
   static final long ONLINE_MS = 5_000;
 
   private static final String PLAYER_ID = "playerId";
+  private static final String USER_ID = "userId";
   private static final int SEND_TIME_LIMIT_MS = 2_000;
   private static final int BUFFER_SIZE_LIMIT = 64 * 1024;
   private static final int MAX_INCOMING_LENGTH = 256;
 
   private final WorldLobby lobby;
+  private final CourseTimer courseTimer;
+  private final WorldTicketService ticketService;
+  private final CourseRecordService courseRecordService;
   private final JsonMapper jsonMapper;
   private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
 
@@ -88,10 +100,52 @@ public class WorldSocketHandler extends TextWebSocketHandler {
       return;
     }
     try {
-      lobby.move(id, jsonMapper.readValue(message.getPayload(), WorldMove.class), now());
+      var node = jsonMapper.readTree(message.getPayload());
+      if ("auth".equals(node.path("t").asString(""))) {
+        ticketService
+            .redeem(node.path("ticket").asString(null), now())
+            .ifPresent(userId -> session.getAttributes().put(USER_ID, userId));
+        return;
+      }
+      WorldMove move = jsonMapper.treeToValue(node, WorldMove.class);
+      long now = now();
+      if (lobby.move(id, move, now)) {
+        timeCourse(session, id, move, now);
+      }
     } catch (JacksonException e) {
       // 형식이 틀린 메시지는 무시
     }
+  }
+
+  /** 점프 코스에서는 위치로 기록을 재고, 완주하면 결과를 그 사람에게만 알려준다. */
+  private void timeCourse(WebSocketSession rawSession, String id, WorldMove move, long now) {
+    String region = lobby.channelOf(id).map(WorldLobby.ChannelKey::region).orElse(null);
+    double y = move.y() == null ? 0 : move.y();
+    courseTimer
+        .track(id, region, move.x(), y, move.z(), now)
+        .ifPresent(
+            finish -> {
+              Long userId = (Long) rawSession.getAttributes().get(USER_ID);
+              CourseResult result;
+              try {
+                result = courseRecordService.finish(userId, finish.course(), finish.millis());
+              } catch (RuntimeException e) {
+                log.warn("[World] course record failed: {}", e.getMessage());
+                return;
+              }
+              WebSocketSession session = sessions.get(id);
+              if (session == null) {
+                return;
+              }
+              var payload = new HashMap<String, Object>();
+              payload.put("t", "record");
+              payload.put("course", finish.course().region());
+              payload.put("ms", result.timeMs());
+              payload.put("best", result.bestMs());
+              payload.put("rank", result.rank());
+              payload.put("saved", result.saved());
+              send(session, payload);
+            });
   }
 
   @Override
@@ -101,6 +155,7 @@ public class WorldSocketHandler extends TextWebSocketHandler {
       return;
     }
     sessions.remove(id);
+    courseTimer.forget(id);
     lobby
         .leave(id)
         .ifPresent(channel -> broadcastToChannel(channel, Map.of("t", "leave", "id", id), id));

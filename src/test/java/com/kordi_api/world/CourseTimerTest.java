@@ -1,0 +1,73 @@
+package com.kordi_api.world;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.kordi_api.course.entity.Course;
+import org.junit.jupiter.api.Test;
+
+class CourseTimerTest {
+
+  private final CourseTimer timer = new CourseTimer();
+
+  @Test
+  void 바닥에서_골까지_정상적으로_오르면_서버가_잰_시간으로_완주한다() {
+    timer.track("a", "clouds", -6, 0, 2.6, 0);
+    var none = timer.track("a", "clouds", -5.5, 0.8, 0, 300); // 첫 발판: 시작
+    assertThat(none).isEmpty();
+    long t = 300;
+    double y = 0.8;
+    while (y < 19.0 - 0.3) {
+      t += 400;
+      y += 0.3;
+      assertThat(timer.track("a", "clouds", -5.5, y, 0, t)).isEmpty();
+    }
+    var finish = timer.track("a", "clouds", -5.5, 19.0, 0, t + 400);
+    assertThat(finish).contains(new CourseTimer.Finish(Course.CLOUDS, t + 400 - 300));
+  }
+
+  @Test
+  void 순간이동하면_그_시도는_완주로_치지_않는다() {
+    timer.track("a", "clouds", -6, 0, 2.6, 0);
+    timer.track("a", "clouds", -5.5, 0.8, 0, 300);
+    assertThat(timer.track("a", "clouds", -5.5, 19.0, 0, 20_000))
+        .isEmpty(); // 20초 공백 뒤 한 번에 18 상승: 순간이동
+  }
+
+  @Test
+  void 최소_시간보다_빠르면_버린다() {
+    timer.track("a", "night", -6, 0, 2.6, 0);
+    timer.track("a", "night", -5.5, 0.8, 0, 100);
+    long t = 100;
+    double y = 0.8;
+    // 초당 18씩 상승: 속도 검사는 통과하지만 1초 만에 완주는 사람이 못 낸다
+    while (y < 17.3) {
+      t += 100;
+      y = Math.min(17.3, y + 1.8);
+      if (y < 17.3) assertThat(timer.track("a", "night", -5.5, y, 0, t)).isEmpty();
+    }
+    assertThat(timer.track("a", "night", -5.5, 17.3, 0, t)).isEmpty();
+  }
+
+  @Test
+  void 바닥으로_떨어지면_처음부터_다시_잰다() {
+    timer.track("a", "clouds", -6, 0, 2.6, 0);
+    timer.track("a", "clouds", -5.5, 0.8, 0, 300);
+    timer.track("a", "clouds", -5.5, 0, 0, 600); // 떨어짐
+    timer.track("a", "clouds", -5.5, 0.8, 0, 5_000); // 다시 시작
+    long t = 5_000;
+    double y = 0.8;
+    while (y < 19.0 - 0.3) {
+      t += 400;
+      y += 0.3;
+      timer.track("a", "clouds", -5.5, y, 0, t);
+    }
+    var finish = timer.track("a", "clouds", -5.5, 19.0, 0, t + 400);
+    assertThat(finish).map(CourseTimer.Finish::millis).contains(t + 400 - 5_000);
+  }
+
+  @Test
+  void 코스가_아닌_지역은_재지_않는다() {
+    timer.track("a", "hall", 0, 0, 0, 0);
+    assertThat(timer.track("a", "hall", 0, 19.0, 0, 60_000)).isEmpty();
+  }
+}
