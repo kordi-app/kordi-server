@@ -7,7 +7,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.ErrorResponseException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -71,6 +74,32 @@ public class GlobalExceptionHandler {
       DataIntegrityViolationException e, HttpServletRequest request) {
     log.warn("[DataIntegrityViolation] {}", e.getMostSpecificCause().getMessage());
     return toResponse(CoreExceptionCode.DATA_CONFLICT, request);
+  }
+
+  /** 동시 수정 충돌 (낙관적 잠금) */
+  @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+  public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(HttpServletRequest request) {
+    return toResponse(CoreExceptionCode.DATA_CONFLICT, request);
+  }
+
+  @ExceptionHandler(AccessDeniedException.class)
+  public ResponseEntity<ApiResponse<Void>> handleAccessDenied(HttpServletRequest request) {
+    return toResponse(CoreExceptionCode.FORBIDDEN, request);
+  }
+
+  /** 그 밖의 Spring MVC 예외(미디어 타입, 메서드 검증 등)는 500이 아니라 자기 상태 코드로 */
+  @ExceptionHandler(ErrorResponseException.class)
+  public ResponseEntity<ApiResponse<Void>> handleErrorResponse(
+      ErrorResponseException e, HttpServletRequest request) {
+    int status = e.getStatusCode().value();
+    CoreExceptionCode code =
+        status == 404
+            ? CoreExceptionCode.NOT_FOUND
+            : status == 405
+                ? CoreExceptionCode.METHOD_NOT_ALLOWED
+                : CoreExceptionCode.INVALID_REQUEST;
+    return ResponseEntity.status(e.getStatusCode())
+        .body(ApiResponse.error(code.getCode(), code.getMessage(), request.getRequestURI()));
   }
 
   /** 예상하지 못한 예외: 내부 메시지는 로그에만 남기고 클라이언트에는 고정 메시지를 내려준다. */

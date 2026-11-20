@@ -26,11 +26,20 @@ public class ApiLoggingFilter extends OncePerRequestFilter {
       filterChain.doFilter(request, response);
     } finally {
       long elapsed = System.currentTimeMillis() - startTime;
-      String query = request.getQueryString();
+      String query = mask(request.getQueryString());
       String uri = query == null ? request.getRequestURI() : request.getRequestURI() + "?" + query;
 
       log.info("{} {} {} ({}ms)", request.getMethod(), uri, response.getStatus(), elapsed);
     }
+  }
+
+  /** one-time codes, OAuth state and any token-like value never reach the logs */
+  static String mask(String query) {
+    if (query == null) {
+      return null;
+    }
+    return query.replaceAll(
+        "(?i)(^|&)(code|state|token|accessToken|refreshToken|ticket)=[^&]*", "$1$2=***");
   }
 
   @Override

@@ -32,11 +32,11 @@ public class RefreshToken extends BaseTimeEntity {
   private Long id;
 
   @Column(nullable = false, unique = true)
-  @Comment("리프레시 토큰")
+  @Comment("리프레시 토큰의 SHA-256 해시")
   private String token;
 
   @Column
-  @Comment("직전 리프레시 토큰 (동시 재발급 유예용)")
+  @Comment("직전 리프레시 토큰의 해시 (동시 재발급 유예용)")
   private String previousToken;
 
   @Column private LocalDateTime rotatedAt;
@@ -67,6 +67,15 @@ public class RefreshToken extends BaseTimeEntity {
   public void rotate(String newToken, LocalDateTime expiredAt, LocalDateTime now) {
     this.previousToken = this.token;
     this.rotatedAt = now;
+    this.token = newToken;
+    this.expiredAt = expiredAt;
+  }
+
+  /**
+   * 유예 시간 안의 동시 재발급: 다른 요청이 방금 회전시켰으니 이쪽에도 새 토큰을 준다. 직전 토큰과 회전 시각은 그대로 두어, 같은 직전 토큰으로 온 나머지 동시 요청도
+   * 유예 시간 안에서는 받아준다.
+   */
+  public void rotateKeepingPrevious(String newToken, LocalDateTime expiredAt) {
     this.token = newToken;
     this.expiredAt = expiredAt;
   }

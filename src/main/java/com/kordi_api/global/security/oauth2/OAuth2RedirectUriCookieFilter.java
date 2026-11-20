@@ -2,11 +2,12 @@ package com.kordi_api.global.security.oauth2;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -31,12 +32,17 @@ public class OAuth2RedirectUriCookieFilter extends OncePerRequestFilter {
       String redirectUri = request.getParameter(REDIRECT_URI_PARAM);
 
       if (redirectUriValidator.isAllowed(redirectUri)) {
-        Cookie cookie = new Cookie(REDIRECT_URI_COOKIE_NAME, redirectUri);
-        cookie.setPath("/");
-        cookie.setHttpOnly(true);
-        cookie.setSecure(request.isSecure());
-        cookie.setMaxAge(COOKIE_MAX_AGE_SECONDS);
-        response.addCookie(cookie);
+        // Secure follows the real scheme (behind the proxy, forward headers make isSecure() true);
+        // SameSite=Lax still lets it ride along on the top-level redirect back from Google
+        ResponseCookie cookie =
+            ResponseCookie.from(REDIRECT_URI_COOKIE_NAME, redirectUri)
+                .path("/")
+                .httpOnly(true)
+                .secure(request.isSecure())
+                .sameSite("Lax")
+                .maxAge(COOKIE_MAX_AGE_SECONDS)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
       }
     }
 

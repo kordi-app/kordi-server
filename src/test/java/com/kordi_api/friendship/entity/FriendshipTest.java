@@ -101,4 +101,14 @@ class FriendshipTest {
         .extracting("errorCode")
         .isEqualTo(CoreExceptionCode.FORBIDDEN);
   }
+
+  @Test
+  void 상대가_보낸_요청이_대기_중일_때_되받아_요청하면_바로_친구가_된다() {
+    var a = com.kordi_api.support.Fixtures.user(1L);
+    var b = com.kordi_api.support.Fixtures.user(2L);
+    Friendship friendship = Friendship.request(a, b);
+    friendship.reopen(b, a);
+    org.assertj.core.api.Assertions.assertThat(friendship.getStatus())
+        .isEqualTo(FriendshipStatus.ACCEPTED);
+  }
 }

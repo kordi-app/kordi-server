@@ -26,8 +26,8 @@ public class UserService {
   public UserResponse updateProfile(Long userId, UserUpdateRequest request) {
     User user = getUserOrThrow(userId);
 
-    if (!user.getNickname().equals(request.nickname())
-        && userRepository.existsByNickname(request.nickname())) {
+    // the DB compares nicknames case-insensitively: check others only, so "bob" → "Bob" is allowed
+    if (userRepository.existsByNicknameAndIdNot(request.nickname(), userId)) {
       throw new CoreException(CoreExceptionCode.NICKNAME_DUPLICATED);
     }
 

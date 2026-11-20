@@ -2,6 +2,7 @@ package com.kordi_api.global.security.oauth2;
 
 import com.kordi_api.auth.dto.TokenResponse;
 import com.kordi_api.auth.service.AuthService;
+import com.kordi_api.auth.service.LoginCodeService;
 import com.kordi_api.user.entity.OAuthProvider;
 import com.kordi_api.user.entity.User;
 import com.kordi_api.user.repository.UserRepository;
@@ -23,6 +24,7 @@ import org.springframework.web.util.WebUtils;
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
   private final AuthService authService;
+  private final LoginCodeService loginCodeService;
   private final UserRepository userRepository;
   private final OAuth2RedirectUriValidator redirectUriValidator;
 
@@ -48,12 +50,10 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
     TokenResponse tokens = authService.issueTokens(user);
 
-    String url =
-        resolveRedirectUrl(request, response)
-            + "?accessToken="
-            + tokens.accessToken()
-            + "&refreshToken="
-            + tokens.refreshToken();
+    // only a short-lived one-time code goes in the URL (history, logs, Referer);
+    // the front end's server trades it for the tokens via POST /api/auth/exchange
+    String code = loginCodeService.issue(tokens, System.currentTimeMillis());
+    String url = resolveRedirectUrl(request, response) + "?code=" + code;
 
     getRedirectStrategy().sendRedirect(request, response, url);
   }

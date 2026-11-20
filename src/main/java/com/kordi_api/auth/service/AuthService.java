@@ -10,6 +10,8 @@ import com.kordi_api.global.security.jwt.JwtTokenProvider;
 import com.kordi_api.user.entity.User;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,23 +27,28 @@ public class AuthService {
   private final RefreshTokenRepository refreshTokenRepository;
   private final JwtProperties jwtProperties;
 
+  /**
+   * 방금 회전된 토큰 쌍, 직전 토큰의 해시로 찾는다. DB에는 해시만 있어 유예 시간 안의 동시 요청에게 같은 새 토큰을 돌려주려면 여기서 꺼내야 한다 (유예 시간만큼만
+   * 보관, 서버 1대 기준).
+   */
+  private final Map<String, RecentRotation> recentRotations = new ConcurrentHashMap<>();
+
+  private record RecentRotation(TokenResponse tokens, LocalDateTime until) {}
+
   /** 로그인 성공 시 토큰 쌍을 발급한다. 유저의 기존 리프레시 토큰은 대체된다. */
   @Transactional
   public TokenResponse issueTokens(User user) {
     String refreshToken = jwtTokenProvider.createRefreshToken();
+    String stored = TokenHasher.hash(refreshToken);
     LocalDateTime expiredAt = refreshTokenExpiredAt(LocalDateTime.now());
 
     refreshTokenRepository
         .findByUserId(user.getId())
         .ifPresentOrElse(
-            saved -> saved.replace(refreshToken, expiredAt),
+            saved -> saved.replace(stored, expiredAt),
             () ->
                 refreshTokenRepository.save(
-                    RefreshToken.builder()
-                        .token(refreshToken)
-                        .user(user)
-                        .expiredAt(expiredAt)
-                        .build()));
+                    RefreshToken.builder().token(stored).user(user).expiredAt(expiredAt).build()));
 
     return new TokenResponse(
         jwtTokenProvider.createAccessToken(user.getId(), user.getRole()), refreshToken);
@@ -52,23 +59,53 @@ public class AuthService {
   public TokenResponse reissueToken(String refreshToken) {
     LocalDateTime now = LocalDateTime.now();
 
-    var current = refreshTokenRepository.findByTokenForUpdate(refreshToken);
+    String hashed = TokenHasher.hash(refreshToken);
+
+    // stored as a hash; rows written before hashing hold the raw token (accepted once, re-stored
+    // hashed)
+    var current =
+        refreshTokenRepository
+            .findByTokenForUpdate(hashed)
+            .or(() -> refreshTokenRepository.findByTokenForUpdate(refreshToken));
     if (current.isPresent()) {
       return rotate(current.get(), now);
     }
 
-    // 방금 다른 요청이 회전시킨 토큰이면, 유예 시간 안에서는 회전된 최신 토큰을 그대로 돌려준다
-    return refreshTokenRepository
-        .findByPreviousToken(refreshToken)
-        .filter(saved -> saved.isPreviousTokenUsable(now, ROTATION_GRACE_PERIOD))
-        .filter(saved -> !saved.isExpired(now))
-        .map(saved -> new TokenResponse(createAccessToken(saved), saved.getToken()))
-        .orElseThrow(() -> new CoreException(CoreExceptionCode.INVALID_REFRESH_TOKEN));
+    var rotatedAway = refreshTokenRepository.findByPreviousToken(hashed);
+    if (rotatedAway.isEmpty()) {
+      throw new CoreException(CoreExceptionCode.INVALID_REFRESH_TOKEN);
+    }
+    RefreshToken saved = rotatedAway.get();
+    if (saved.isExpired(now)) {
+      throw new CoreException(CoreExceptionCode.INVALID_REFRESH_TOKEN);
+    }
+    if (!saved.isPreviousTokenUsable(now, ROTATION_GRACE_PERIOD)) {
+      // an old token replayed after its grace window: likely stolen — end the session
+      refreshTokenRepository.delete(saved);
+      throw new CoreException(CoreExceptionCode.INVALID_REFRESH_TOKEN);
+    }
+    // a parallel request rotated it a moment ago: hand back the same new pair it got
+    RecentRotation recent = recentRotations.get(hashed);
+    if (recent != null && !now.isAfter(recent.until())) {
+      return new TokenResponse(createAccessToken(saved), recent.tokens().refreshToken());
+    }
+    // (that pair is gone — e.g. the server restarted in between): rotate once more for this caller
+    String newRefreshToken = jwtTokenProvider.createRefreshToken();
+    saved.rotateKeepingPrevious(TokenHasher.hash(newRefreshToken), refreshTokenExpiredAt(now));
+    return new TokenResponse(createAccessToken(saved), newRefreshToken);
   }
 
+  /** 로그아웃: 로그인 상태면 그 유저의 세션을, 아니면(액세스 토큰 만료) 넘겨받은 리프레시 토큰의 세션을 끝낸다. 둘 다 없으면 할 일이 없다. */
   @Transactional
-  public void logout(Long userId) {
-    refreshTokenRepository.deleteByUserId(userId);
+  public void logout(Long userId, String refreshToken) {
+    if (userId != null) {
+      refreshTokenRepository.deleteByUserId(userId);
+      return;
+    }
+    if (refreshToken != null && !refreshToken.isBlank()) {
+      refreshTokenRepository.deleteByToken(TokenHasher.hash(refreshToken));
+      refreshTokenRepository.deleteByToken(refreshToken); // a row from before hashing
+    }
   }
 
   private TokenResponse rotate(RefreshToken saved, LocalDateTime now) {
@@ -76,9 +113,13 @@ public class AuthService {
       refreshTokenRepository.delete(saved);
       throw new CoreException(CoreExceptionCode.INVALID_REFRESH_TOKEN);
     }
+    String previousHash = saved.getToken();
     String newRefreshToken = jwtTokenProvider.createRefreshToken();
-    saved.rotate(newRefreshToken, refreshTokenExpiredAt(now), now);
-    return new TokenResponse(createAccessToken(saved), newRefreshToken);
+    saved.rotate(TokenHasher.hash(newRefreshToken), refreshTokenExpiredAt(now), now);
+    TokenResponse tokens = new TokenResponse(createAccessToken(saved), newRefreshToken);
+    recentRotations.values().removeIf(r -> now.isAfter(r.until()));
+    recentRotations.put(previousHash, new RecentRotation(tokens, now.plus(ROTATION_GRACE_PERIOD)));
+    return tokens;
   }
 
   private String createAccessToken(RefreshToken saved) {

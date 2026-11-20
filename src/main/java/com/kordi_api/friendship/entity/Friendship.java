@@ -44,6 +44,9 @@ public class Friendship extends BaseTimeEntity {
   @Column(name = "user_high_id", nullable = false)
   private Long userHighId;
 
+  /** 동시 수락·취소가 서로를 덮어쓰지 않도록 (늦은 쪽은 409) */
+  @Version private Long version;
+
   @Builder
   private Friendship(User sender, User receiver) {
     this.sender = sender;
@@ -60,8 +63,12 @@ public class Friendship extends BaseTimeEntity {
     return Friendship.builder().sender(sender).receiver(receiver).build();
   }
 
-  /** 거절/취소된 관계에 다시 요청을 보낸다. 방향은 새 요청자 기준으로 바뀐다. */
+  /** 이미 관계가 있는 쌍에 다시 요청한다. 상대가 보낸 요청이 대기 중이면 서로 원하는 것이니 바로 친구가 된다. 거절/취소된 관계면 새 요청자 기준으로 다시 연다. */
   public void reopen(User sender, User receiver) {
+    if (status == FriendshipStatus.PENDING && isSender(receiver.getId())) {
+      this.status = FriendshipStatus.ACCEPTED;
+      return;
+    }
     if (status == FriendshipStatus.PENDING || status == FriendshipStatus.ACCEPTED) {
       throw new CoreException(CoreExceptionCode.FRIENDSHIP_ALREADY_EXISTS);
     }

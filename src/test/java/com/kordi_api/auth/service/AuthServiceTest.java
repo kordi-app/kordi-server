@@ -40,47 +40,65 @@ class AuthServiceTest {
     return RefreshToken.builder().token(token).user(user(1L)).expiredAt(expiredAt).build();
   }
 
+  private static String h(String raw) {
+    return TokenHasher.hash(raw);
+  }
+
   @Test
-  void 재발급하면_토큰이_회전되고_직전_토큰이_보관된다() {
-    RefreshToken saved = savedToken("old", LocalDateTime.now().plusDays(1));
-    given(repository.findByTokenForUpdate("old")).willReturn(Optional.of(saved));
+  void 재발급하면_토큰이_회전되고_해시만_저장된다() {
+    RefreshToken saved = savedToken(h("old"), LocalDateTime.now().plusDays(1));
+    given(repository.findByTokenForUpdate(h("old"))).willReturn(Optional.of(saved));
 
     TokenResponse response = authService.reissueToken("old");
 
     assertThat(response.refreshToken()).isNotEqualTo("old");
-    assertThat(saved.getToken()).isEqualTo(response.refreshToken());
-    assertThat(saved.getPreviousToken()).isEqualTo("old");
+    assertThat(saved.getToken()).isEqualTo(h(response.refreshToken()));
+    assertThat(saved.getPreviousToken()).isEqualTo(h("old"));
   }
 
   @Test
-  void 유예_시간_안에_직전_토큰으로_재발급하면_최신_토큰을_돌려준다() {
-    RefreshToken saved = savedToken("old", LocalDateTime.now().plusDays(1));
-    saved.rotate("new", LocalDateTime.now().plusDays(1), LocalDateTime.now());
-    given(repository.findByTokenForUpdate("old")).willReturn(Optional.empty());
-    given(repository.findByPreviousToken("old")).willReturn(Optional.of(saved));
+  void 해시_이전에_저장된_평문_토큰도_한_번은_받아준다() {
+    RefreshToken legacy = savedToken("old", LocalDateTime.now().plusDays(1));
+    given(repository.findByTokenForUpdate(h("old"))).willReturn(Optional.empty());
+    given(repository.findByTokenForUpdate("old")).willReturn(Optional.of(legacy));
 
     TokenResponse response = authService.reissueToken("old");
 
-    assertThat(response.refreshToken()).isEqualTo("new");
-    assertThat(saved.getToken()).isEqualTo("new");
+    assertThat(legacy.getToken()).isEqualTo(h(response.refreshToken()));
   }
 
   @Test
-  void 유예_시간이_지난_직전_토큰은_거부된다() {
-    RefreshToken saved = savedToken("old", LocalDateTime.now().plusDays(1));
+  void 유예_시간_안의_동시_재발급은_같은_새_토큰을_받는다() {
+    RefreshToken saved = savedToken(h("old"), LocalDateTime.now().plusDays(1));
+    given(repository.findByTokenForUpdate(h("old"))).willReturn(Optional.of(saved));
+    TokenResponse first = authService.reissueToken("old");
+
+    given(repository.findByTokenForUpdate(h("old"))).willReturn(Optional.empty());
+    given(repository.findByTokenForUpdate("old")).willReturn(Optional.empty());
+    given(repository.findByPreviousToken(h("old"))).willReturn(Optional.of(saved));
+    TokenResponse second = authService.reissueToken("old");
+
+    assertThat(second.refreshToken()).isEqualTo(first.refreshToken());
+    assertThat(saved.getToken()).isEqualTo(h(first.refreshToken()));
+  }
+
+  @Test
+  void 유예_시간이_지난_직전_토큰은_탈취로_보고_세션을_끝낸다() {
+    RefreshToken saved = savedToken(h("old"), LocalDateTime.now().plusDays(1));
     LocalDateTime longAgo =
         LocalDateTime.now().minus(AuthService.ROTATION_GRACE_PERIOD).minusSeconds(1);
-    saved.rotate("new", LocalDateTime.now().plusDays(1), longAgo);
+    saved.rotate(h("new"), LocalDateTime.now().plusDays(1), longAgo);
     given(repository.findByTokenForUpdate(anyString())).willReturn(Optional.empty());
-    given(repository.findByPreviousToken("old")).willReturn(Optional.of(saved));
+    given(repository.findByPreviousToken(h("old"))).willReturn(Optional.of(saved));
 
     assertThatThrownBy(() -> authService.reissueToken("old")).isInstanceOf(CoreException.class);
+    verify(repository).delete(saved);
   }
 
   @Test
   void 만료된_토큰은_삭제하고_거부한다() {
-    RefreshToken saved = savedToken("old", LocalDateTime.now().minusSeconds(1));
-    given(repository.findByTokenForUpdate("old")).willReturn(Optional.of(saved));
+    RefreshToken saved = savedToken(h("old"), LocalDateTime.now().minusSeconds(1));
+    given(repository.findByTokenForUpdate(h("old"))).willReturn(Optional.of(saved));
 
     assertThatThrownBy(() -> authService.reissueToken("old")).isInstanceOf(CoreException.class);
     verify(repository).delete(saved);
@@ -88,14 +106,26 @@ class AuthServiceTest {
 
   @Test
   void 로그인하면_기존_토큰을_대체하고_유예_정보를_지운다() {
-    RefreshToken saved = savedToken("old", LocalDateTime.now().plusDays(1));
-    saved.rotate("rotated", LocalDateTime.now().plusDays(1), LocalDateTime.now());
+    RefreshToken saved = savedToken(h("old"), LocalDateTime.now().plusDays(1));
+    saved.rotate(h("rotated"), LocalDateTime.now().plusDays(1), LocalDateTime.now());
     ReflectionTestUtils.setField(saved, "id", 10L);
     given(repository.findByUserId(1L)).willReturn(Optional.of(saved));
 
     TokenResponse response = authService.issueTokens(user(1L));
 
-    assertThat(saved.getToken()).isEqualTo(response.refreshToken());
+    assertThat(saved.getToken()).isEqualTo(h(response.refreshToken()));
     assertThat(saved.getPreviousToken()).isNull();
+  }
+
+  @Test
+  void 액세스_토큰이_만료돼도_리프레시_토큰으로_로그아웃된다() {
+    authService.logout(null, "raw");
+    verify(repository).deleteByToken(h("raw"));
+  }
+
+  @Test
+  void 로그인_상태면_유저의_세션을_지운다() {
+    authService.logout(7L, null);
+    verify(repository).deleteByUserId(7L);
   }
 }

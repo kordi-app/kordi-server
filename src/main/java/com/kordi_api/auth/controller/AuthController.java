@@ -2,10 +2,12 @@ package com.kordi_api.auth.controller;
 
 import com.kordi_api.auth.dto.TokenResponse;
 import com.kordi_api.auth.service.AuthService;
+import com.kordi_api.auth.service.LoginCodeService;
 import com.kordi_api.global.common.ApiResponse;
 import com.kordi_api.global.exception.CoreException;
 import com.kordi_api.global.exception.CoreExceptionCode;
 import com.kordi_api.global.security.LoginUser;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
   private final AuthService authService;
+  private final LoginCodeService loginCodeService;
 
   private static final String BEARER_PREFIX = "Bearer ";
 
@@ -32,9 +35,21 @@ public class AuthController {
     return ApiResponse.success(authService.reissueToken(refreshToken));
   }
 
+  /** 로그아웃. 액세스 토큰이 만료된 뒤에도 세션을 끝낼 수 있도록 리프레시 토큰을 {@code X-Refresh-Token} 헤더로 함께 받는다. */
   @DeleteMapping("/logout")
-  public ApiResponse<Void> logout(@LoginUser Long userId) {
-    authService.logout(userId);
+  public ApiResponse<Void> logout(
+      @LoginUser Long userId,
+      @RequestHeader(value = "X-Refresh-Token", required = false) String refreshToken) {
+    authService.logout(userId, refreshToken);
     return ApiResponse.success();
+  }
+
+  /** 로그인 직후 받은 1회용 코드를 토큰 쌍으로 바꾼다 (프론트 서버가 서버 대 서버로 호출). */
+  @PostMapping("/exchange")
+  public ApiResponse<TokenResponse> exchange(@RequestBody Map<String, String> body) {
+    return ApiResponse.success(
+        loginCodeService
+            .redeem(body == null ? null : body.get("code"), System.currentTimeMillis())
+            .orElseThrow(() -> new CoreException(CoreExceptionCode.INVALID_REFRESH_TOKEN)));
   }
 }

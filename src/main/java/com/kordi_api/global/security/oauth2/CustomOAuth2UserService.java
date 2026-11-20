@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
   private final UserRepository userRepository;
+  private final NicknameGenerator nicknames;
 
   @Override
   public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
@@ -33,7 +34,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 userRepository.save(
                     User.builder()
                         .email(userInfo.getEmail())
-                        .nickname(userInfo.getName())
+                        .nickname(nicknames.uniqueFrom(userInfo.getName()))
                         .profileImageUrl(userInfo.getProfileImageUrl())
                         .oauthProvider(provider)
                         .oauthId(userInfo.getOauthId())
