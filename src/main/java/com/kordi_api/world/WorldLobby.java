@@ -83,7 +83,7 @@ public class WorldLobby {
     Channel channel = channels.computeIfAbsent(channelNo, n -> new Channel());
 
     String id = Long.toString(sequence.incrementAndGet(), 36);
-    WorldPlayer player = new WorldPlayer(id, sanitizeName(rawName), 0, 0, 3.6, 0, null, null);
+    WorldPlayer player = new WorldPlayer(id, sanitizeName(rawName), 0, 0, 3.6, 0, null, null, null);
     channel.players.put(id, player);
     channelOf.put(id, channelNo);
     return Optional.of(new Seat(channelNo, player));
@@ -110,6 +110,17 @@ public class WorldLobby {
     channel.players.put(id, current.moved(move.x(), y, move.z(), move.h(), move.m(), emote));
     channel.dirty.add(id);
     return true;
+  }
+
+  /** 모습 변경. 그 사람이 있는 채널을 돌려준다 (없으면 empty). */
+  public Optional<ChannelKey> dress(String id, WorldLook look) {
+    ChannelKey channelNo = channelOf.get(id);
+    Channel channel = channelNo == null ? null : channels.get(channelNo);
+    if (channel == null) {
+      return Optional.empty();
+    }
+    WorldPlayer updated = channel.players.computeIfPresent(id, (k, p) -> p.dressed(look));
+    return updated == null ? Optional.empty() : Optional.of(channelNo);
   }
 
   /** 퇴장. 떠난 사람이 있던 채널 번호를 돌려준다. */

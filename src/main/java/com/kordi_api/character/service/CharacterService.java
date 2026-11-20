@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,7 @@ public class CharacterService {
   private final CharacterAppearanceRepository appearanceRepository;
   private final CourseRecordRepository courseRecordRepository;
   private final UserRepository userRepository;
+  private final ApplicationEventPublisher events;
 
   @Transactional(readOnly = true)
   public CharacterResponse get(Long userId) {
@@ -47,6 +49,7 @@ public class CharacterService {
             .findByUserId(userId)
             .orElseGet(() -> appearanceRepository.save(CharacterAppearance.defaultFor(user)));
     appearance.change(request.body(), request.hat(), request.face(), request.accessory());
+    events.publishEvent(new AppearanceChanged(userId, toDto(appearance)));
     return new CharacterResponse(toDto(appearance), unlocked);
   }
 
@@ -66,6 +69,7 @@ public class CharacterService {
             .findByUserId(user.getId())
             .orElseGet(() -> appearanceRepository.save(CharacterAppearance.defaultFor(user)));
     appearance.wear(hat);
+    events.publishEvent(new AppearanceChanged(user.getId(), toDto(appearance)));
     return hat;
   }
 

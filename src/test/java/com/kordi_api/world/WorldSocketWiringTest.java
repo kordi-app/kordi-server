@@ -3,6 +3,7 @@ package com.kordi_api.world;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+import com.kordi_api.character.service.CharacterService;
 import com.kordi_api.course.service.CourseRecordService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -20,6 +21,7 @@ class WorldSocketWiringTest {
         .withBean(CourseTimer.class)
         .withBean(WorldTicketService.class)
         .withBean(CourseRecordService.class, () -> mock(CourseRecordService.class))
+        .withBean(CharacterService.class, () -> mock(CharacterService.class))
         .withBean(WorldSocketHandler.class)
         .run(context -> assertThat(context).hasNotFailed().hasSingleBean(WorldSocketHandler.class));
   }

@@ -1,5 +1,7 @@
 package com.kordi_api.world;
 
+import com.kordi_api.character.service.AppearanceChanged;
+import com.kordi_api.character.service.CharacterService;
 import com.kordi_api.course.dto.CourseResult;
 import com.kordi_api.course.service.CourseRecordService;
 import java.io.IOException;
@@ -11,6 +13,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -33,6 +36,7 @@ import tools.jackson.databind.json.JsonMapper;
  *         <li>{@code moves}: 같은 채널에서 움직인 사람들의 최신 위치 ({@value #TICK_MS}ms마다 묶어서)
  *         <li>{@code online}: 전체·지역별 접속자 수 ({@value #ONLINE_MS}ms마다)
  *       </ul>
+ *   <li>{@code look}: 같은 채널 누군가의 꾸민 모습이 바뀜 (회원이 로그인을 밝혔을 때, 꾸미기를 저장했을 때)
  *   <li>{@code record}: 점프 코스 완주 기록 (서버가 잰 시간, 역대 순위, 저장 여부)
  *   <li>클라이언트 → 서버
  *       <ul>
@@ -61,6 +65,7 @@ public class WorldSocketHandler extends TextWebSocketHandler {
   private final CourseTimer courseTimer;
   private final WorldTicketService ticketService;
   private final CourseRecordService courseRecordService;
+  private final CharacterService characterService;
   private final JsonMapper jsonMapper;
   private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
 
@@ -104,7 +109,11 @@ public class WorldSocketHandler extends TextWebSocketHandler {
       if ("auth".equals(node.path("t").asString(""))) {
         ticketService
             .redeem(node.path("ticket").asString(null), now())
-            .ifPresent(userId -> session.getAttributes().put(USER_ID, userId));
+            .ifPresent(
+                userId -> {
+                  session.getAttributes().put(USER_ID, userId);
+                  showLook(id, userId);
+                });
         return;
       }
       WorldMove move = jsonMapper.treeToValue(node, WorldMove.class);
@@ -115,6 +124,39 @@ public class WorldSocketHandler extends TextWebSocketHandler {
     } catch (JacksonException e) {
       // 형식이 틀린 메시지는 무시
     }
+  }
+
+  /** 회원임이 밝혀지면 저장된 모습을 입혀 같은 채널에 알린다. */
+  private void showLook(String playerId, Long userId) {
+    WorldLook look;
+    try {
+      look = WorldLook.of(characterService.get(userId).appearance());
+    } catch (RuntimeException e) {
+      log.debug("[World] look load failed: {}", e.getMessage());
+      return;
+    }
+    dress(playerId, look);
+  }
+
+  private void dress(String playerId, WorldLook look) {
+    lobby
+        .dress(playerId, look)
+        .ifPresent(
+            channel ->
+                broadcastToChannel(
+                    channel, Map.of("t", "look", "id", playerId, "look", look), null));
+  }
+
+  /** 꾸미기 저장·보상 장착: 그 유저가 지금 월드에 있으면 바로 모습을 바꾼다. */
+  @EventListener
+  void onAppearanceChanged(AppearanceChanged event) {
+    WorldLook look = WorldLook.of(event.appearance());
+    sessions.forEach(
+        (playerId, session) -> {
+          if (event.userId().equals(session.getAttributes().get(USER_ID))) {
+            dress(playerId, look);
+          }
+        });
   }
 
   /** 점프 코스에서는 위치로 기록을 재고, 완주하면 결과를 그 사람에게만 알려준다. */

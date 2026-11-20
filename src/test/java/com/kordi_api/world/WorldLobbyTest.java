@@ -168,4 +168,21 @@ class WorldLobbyTest {
     lobby.move(id, new WorldMove(0.0, 0.0, 0.0, 0.0, null, "<script>"), 2_000);
     assertThat(lobby.drainMoves(channel)).singleElement().extracting(WorldPlayer::e).isNull();
   }
+
+  @Test
+  void 모습을_입히면_이후_이동에도_유지된다() {
+    WorldLobby lobby = new WorldLobby();
+    String id = lobby.join("hall", "a").orElseThrow().player().id();
+    WorldLook look = new WorldLook("mint", "crown", "smile", null);
+
+    assertThat(lobby.dress(id, look)).isPresent();
+    lobby.move(id, new WorldMove(1.0, 0.0, 2.0, 0.0, null, null), 1_000);
+
+    var channel = lobby.channelOf(id).orElseThrow();
+    assertThat(lobby.playersIn(channel))
+        .singleElement()
+        .extracting(WorldPlayer::look)
+        .isEqualTo(look);
+    assertThat(lobby.dress("nobody", look)).isEmpty();
+  }
 }
