@@ -7,7 +7,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "quiz_chords")
+// one row per chord; text (not ENUM) columns so new chord types never need a schema change
+@Table(
+    name = "quiz_chords",
+    uniqueConstraints = @UniqueConstraint(columnNames = {"chord_key", "chord_type"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class QuizChord {
@@ -20,7 +23,7 @@ public class QuizChord {
   private String chordKey;
 
   @Enumerated(EnumType.STRING)
-  @Column(nullable = false)
+  @Column(nullable = false, columnDefinition = "varchar(40)")
   private ChordType chordType;
 
   @Column(nullable = false, length = 50)
@@ -30,7 +33,7 @@ public class QuizChord {
   private String notes;
 
   @Enumerated(EnumType.STRING)
-  @Column(nullable = false)
+  @Column(nullable = false, columnDefinition = "varchar(10)")
   private Difficulty difficulty;
 
   @Builder

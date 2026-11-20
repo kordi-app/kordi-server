@@ -1,3 +1,10 @@
+-- quiz_chords.chord_type / difficulty were first created as MySQL ENUM columns. ddl-auto never
+-- widens an ENUM, so the chord types added later (POWER, sus/9th/13th…) were stored as '' by
+-- INSERT IGNORE, and any random set that drew one failed with a 500. Keep both columns as text
+-- (idempotent: runs on every start).
+ALTER TABLE quiz_chords MODIFY chord_type VARCHAR(40) NOT NULL;
+ALTER TABLE quiz_chords MODIFY difficulty VARCHAR(10) NOT NULL;
+
 -- EASY: Major, Minor, Seventh, Minor Seventh, Dim, Aug
 INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) VALUES
 -- Major
@@ -659,3 +666,10 @@ INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) 
 ('A', 'NINTH_SHARP11', 'A9#11', 'A,C#,E,G,B,D#', 'HARD'),
 ('A#', 'NINTH_SHARP11', 'A#9#11', 'A#,D,F,G#,C,E', 'HARD'),
 ('B', 'NINTH_SHARP11', 'B9#11', 'B,D#,F#,A,C#,F', 'HARD');
+
+-- Clean-up after the seed: drop rows that lost their type to the old ENUM, and the copies earlier
+-- starts added (INSERT IGNORE skips nothing without a unique key), keeping the oldest of each chord.
+DELETE FROM quiz_chords WHERE chord_type = '';
+DELETE newer FROM quiz_chords newer
+  JOIN quiz_chords older
+    ON older.chord_key = newer.chord_key AND older.chord_type = newer.chord_type AND older.id < newer.id;
