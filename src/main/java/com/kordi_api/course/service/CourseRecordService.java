@@ -1,5 +1,6 @@
 package com.kordi_api.course.service;
 
+import com.kordi_api.character.service.CharacterService;
 import com.kordi_api.course.dto.CourseRankingResponse;
 import com.kordi_api.course.dto.CourseResult;
 import com.kordi_api.course.entity.Course;
@@ -26,27 +27,30 @@ public class CourseRecordService {
 
   private final CourseRecordRepository courseRecordRepository;
   private final UserRepository userRepository;
+  private final CharacterService characterService;
 
   /** 완주 기록 반영. userId가 null(비회원)이면 저장 없이 순위만 알려준다. */
   @Transactional
   public CourseResult finish(Long userId, Course course, long timeMs) {
     long rank = courseRecordRepository.countByCourseAndTimeMsLessThan(course, timeMs) + 1;
     if (userId == null) {
-      return new CourseResult(timeMs, null, rank, false);
+      return new CourseResult(timeMs, null, rank, false, null);
     }
     var user = userRepository.findById(userId).orElse(null);
     if (user == null) {
-      return new CourseResult(timeMs, null, rank, false);
+      return new CourseResult(timeMs, null, rank, false, null);
     }
     LocalDateTime now = LocalDateTime.now();
     var existing = courseRecordRepository.findByUserIdAndCourse(userId, course);
     if (existing.isEmpty()) {
       courseRecordRepository.save(CourseRecord.first(user, course, timeMs, now));
-      return new CourseResult(timeMs, timeMs, rank, true);
+      // 이 코스 첫 완주: 보상이 열리고 바로 씌워진다
+      String reward = characterService.grantReward(user, course);
+      return new CourseResult(timeMs, timeMs, rank, true, reward);
     }
     CourseRecord record = existing.get();
     boolean improved = record.improve(timeMs, now);
-    return new CourseResult(timeMs, record.getTimeMs(), rank, improved);
+    return new CourseResult(timeMs, record.getTimeMs(), rank, improved, null);
   }
 
   @Transactional(readOnly = true)

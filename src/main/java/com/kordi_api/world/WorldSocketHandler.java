@@ -144,6 +144,7 @@ public class WorldSocketHandler extends TextWebSocketHandler {
               payload.put("best", result.bestMs());
               payload.put("rank", result.rank());
               payload.put("saved", result.saved());
+              payload.put("reward", result.reward());
               send(session, payload);
             });
   }
