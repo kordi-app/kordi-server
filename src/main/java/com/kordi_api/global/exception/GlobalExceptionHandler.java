@@ -2,6 +2,7 @@ package com.kordi_api.global.exception;
 
 import com.kordi_api.global.common.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -10,7 +11,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
-import org.springframework.web.ErrorResponseException;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -23,6 +24,9 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+  private static final Set<String> MISSING_VALUE_CONSTRAINTS =
+      Set.of("NotNull", "NotBlank", "NotEmpty");
 
   @ExceptionHandler(CoreException.class)
   public ResponseEntity<ApiResponse<Void>> handleCoreException(
@@ -40,7 +44,13 @@ public class GlobalExceptionHandler {
         e.getBindingResult().getFieldErrors().stream()
             .map(error -> error.getField() + ": " + defaultMessage(error))
             .collect(Collectors.joining(", "));
-    CoreExceptionCode code = CoreExceptionCode.REQUIRED_VALUE_MISSING;
+    // 1001 only when every failure is a missing value; @Max, @Pattern and the like are 1003
+    boolean onlyMissing =
+        !e.getBindingResult().getFieldErrors().isEmpty()
+            && e.getBindingResult().getFieldErrors().stream()
+                .allMatch(error -> MISSING_VALUE_CONSTRAINTS.contains(error.getCode()));
+    CoreExceptionCode code =
+        onlyMissing ? CoreExceptionCode.REQUIRED_VALUE_MISSING : CoreExceptionCode.INVALID_REQUEST;
     return toResponse(code, code.getMessage() + " [" + fields + "]", request);
   }
 
@@ -87,10 +97,12 @@ public class GlobalExceptionHandler {
     return toResponse(CoreExceptionCode.FORBIDDEN, request);
   }
 
-  /** 그 밖의 Spring MVC 예외(미디어 타입, 메서드 검증 등)는 500이 아니라 자기 상태 코드로 */
-  @ExceptionHandler(ErrorResponseException.class)
-  public ResponseEntity<ApiResponse<Void>> handleErrorResponse(
-      ErrorResponseException e, HttpServletRequest request) {
+  /**
+   * 그 밖의 Spring MVC 예외는 500이 아니라 자기 상태 코드로. 415·406 등은 {@code ErrorResponseException}이 아니라 {@code
+   * ServletException implements ErrorResponse}라서 클래스로는 한 번에 잡을 수 없어, 마지막 핸들러에서 인터페이스로 가른다.
+   */
+  private ResponseEntity<ApiResponse<Void>> handleErrorResponse(
+      ErrorResponse e, HttpServletRequest request) {
     int status = e.getStatusCode().value();
     CoreExceptionCode code =
         status == 404
@@ -106,6 +118,9 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiResponse<Void>> handleException(
       Exception e, HttpServletRequest request) {
+    if (e instanceof ErrorResponse errorResponse) {
+      return handleErrorResponse(errorResponse, request);
+    }
     log.error("[Exception] {}", e.getMessage(), e);
     return toResponse(CoreExceptionCode.INTERNAL_SERVER_ERROR, request);
   }
