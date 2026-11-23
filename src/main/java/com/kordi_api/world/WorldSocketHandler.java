@@ -59,6 +59,16 @@ public class WorldSocketHandler extends TextWebSocketHandler {
   private static final String PLAYER_ID = "playerId";
   private static final String USER_ID = "userId";
   private static final String CLIENT_IP = "clientIp";
+  private static final String CONNECTED_AT = "connectedAt";
+  private static final String LAST_SEEN = "lastSeen";
+
+  /** 정상 클라이언트는 접속하자마자 자기 위치를 보낸다. 이 안에 아무것도 안 보내면 자리만 차지하는 연결로 보고 닫는다. */
+  static final long FIRST_MESSAGE_TIMEOUT_MS = 30_000;
+
+  /** 마지막 메시지 이후 이만큼 조용하면 닫는다. 클라이언트는 위치가 바뀔 때만 보내므로 가만히 서 있는 사람도 해당되지만, 끊기면 자동으로 다시 붙는다. */
+  static final long IDLE_TIMEOUT_MS = 30 * 60_000;
+
+  static final long IDLE_SWEEP_MS = 10_000;
   private static final int SEND_TIME_LIMIT_MS = 2_000;
   private static final int BUFFER_SIZE_LIMIT = 64 * 1024;
   private static final int MAX_INCOMING_LENGTH = 256;
@@ -80,6 +90,7 @@ public class WorldSocketHandler extends TextWebSocketHandler {
       return;
     }
     rawSession.getAttributes().put(CLIENT_IP, ip);
+    rawSession.getAttributes().put(CONNECTED_AT, now());
     var seat = lobby.join(queryParam(rawSession, "region"), queryParam(rawSession, "name"));
     if (seat.isEmpty()) {
       // 전체 정원 초과: 클라이언트는 이 코드로 혼자 모드 전환
@@ -113,6 +124,7 @@ public class WorldSocketHandler extends TextWebSocketHandler {
     if (id == null || message.getPayloadLength() > MAX_INCOMING_LENGTH) {
       return;
     }
+    session.getAttributes().put(LAST_SEEN, now());
     try {
       var node = jsonMapper.readTree(message.getPayload());
       if ("auth".equals(node.path("t").asString(""))) {
@@ -234,6 +246,33 @@ public class WorldSocketHandler extends TextWebSocketHandler {
         broadcastToChannel(channel, Map.of("t", "moves", "ps", moved), null);
       }
     }
+  }
+
+  /** 아무것도 보내지 않고 자리만 차지하는 연결 정리 (IP당 제한만으로는 여러 IP로 정원을 채울 수 있다). */
+  @Scheduled(fixedRate = IDLE_SWEEP_MS)
+  void closeIdleSessions() {
+    long now = now();
+    sessions
+        .values()
+        .forEach(
+            session -> {
+              if (isIdle(session.getAttributes(), now)) {
+                try {
+                  session.close(CloseStatus.POLICY_VIOLATION.withReason("idle"));
+                } catch (IOException | IllegalStateException e) {
+                  log.debug("[World] idle close failed: {}", e.getMessage());
+                }
+              }
+            });
+  }
+
+  static boolean isIdle(Map<String, Object> attributes, long now) {
+    Long lastSeen = (Long) attributes.get(LAST_SEEN);
+    if (lastSeen == null) {
+      Long connectedAt = (Long) attributes.get(CONNECTED_AT);
+      return connectedAt != null && now - connectedAt > FIRST_MESSAGE_TIMEOUT_MS;
+    }
+    return now - lastSeen > IDLE_TIMEOUT_MS;
   }
 
   @Scheduled(fixedRate = ONLINE_MS)

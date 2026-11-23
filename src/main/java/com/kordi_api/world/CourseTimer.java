@@ -54,6 +54,10 @@ public class CourseTimer {
     double z;
     long at;
     Long startedAt;
+
+    /** 시작 전에 바닥을 밟았는지. 직전 샘플만 보면 0.3~0.5 사이 샘플 하나로 시작을 놓친다. */
+    boolean touchedFloor;
+
     boolean valid;
     double horizontalBudget;
     double riseBudget;
@@ -75,6 +79,7 @@ public class CourseTimer {
       run.y = y;
       run.z = z;
       run.at = now;
+      run.touchedFloor = y < FLOOR_Y;
       runs.put(playerId, run);
       return Optional.empty();
     }
@@ -94,7 +99,6 @@ public class CourseTimer {
             && Math.abs(x) <= AREA_X
             && z >= AREA_Z_MIN
             && z <= AREA_Z_MAX;
-    double previousY = run.y;
     run.x = x;
     run.y = y;
     run.z = z;
@@ -102,10 +106,12 @@ public class CourseTimer {
 
     if (y < FLOOR_Y) {
       run.startedAt = null; // 떨어지면 처음부터
+      run.touchedFloor = true;
       return Optional.empty();
     }
     if (run.startedAt == null) {
-      if (previousY < FLOOR_Y && y >= START_Y) {
+      if (run.touchedFloor && y >= START_Y) {
+        run.touchedFloor = false;
         run.startedAt = now;
         run.valid = true;
         run.horizontalBudget = MAX_HORIZONTAL_SPEED * BURST_SECONDS;

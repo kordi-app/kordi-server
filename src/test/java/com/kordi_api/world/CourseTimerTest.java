@@ -26,6 +26,38 @@ class CourseTimerTest {
   }
 
   @Test
+  void 점프_중_중간_높이_샘플이_찍혀도_시작한다() {
+    timer.track("a", "clouds", -6, 0, 2.6, 0);
+    timer.track("a", "clouds", -5.8, 0.4, 1.5, 100); // 0.3~0.5 사이
+    timer.track("a", "clouds", -5.5, 0.8, 0, 300); // 발판: 여기서 시작해야 한다
+    long t = 300;
+    double y = 0.8;
+    while (y < 19.0 - 0.3) {
+      t += 400;
+      y += 0.3;
+      timer.track("a", "clouds", -5.5, y, 0, t);
+    }
+    var finish = timer.track("a", "clouds", -5.5, 19.0, 0, t + 400);
+    assertThat(finish).map(CourseTimer.Finish::millis).contains(t + 400 - 300);
+  }
+
+  @Test
+  void 완주_뒤에는_바닥을_다시_밟아야_새로_시작한다() {
+    timer.track("a", "clouds", -6, 0, 2.6, 0);
+    timer.track("a", "clouds", -5.5, 0.8, 0, 300);
+    long t = 300;
+    double y = 0.8;
+    while (y < 19.0 - 0.3) {
+      t += 400;
+      y += 0.3;
+      timer.track("a", "clouds", -5.5, y, 0, t);
+    }
+    assertThat(timer.track("a", "clouds", -5.5, 19.0, 0, t + 400)).isPresent();
+    // 바닥을 밟지 않고 골 높이에 계속 머무르면 다시 완주로 치지 않는다
+    assertThat(timer.track("a", "clouds", -5.5, 19.0, 0, t + 800)).isEmpty();
+  }
+
+  @Test
   void 순간이동하면_그_시도는_완주로_치지_않는다() {
     timer.track("a", "clouds", -6, 0, 2.6, 0);
     timer.track("a", "clouds", -5.5, 0.8, 0, 300);
