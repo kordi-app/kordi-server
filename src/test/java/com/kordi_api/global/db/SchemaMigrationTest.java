@@ -1,6 +1,7 @@
 package com.kordi_api.global.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import com.kordi_api.quiz.entity.Difficulty;
 import com.kordi_api.score.dto.ScoreResponse;
@@ -215,12 +216,14 @@ class SchemaMigrationTest {
     LocalDateTime stored =
         jdbc.queryForObject(
             "select created_at from users where id = ?", LocalDateTime.class, user.getId());
-    // the column holds the UTC wall-clock, whatever the JVM's zone is
+    // the column holds the UTC wall-clock, whatever the JVM's zone is. MySQL rounds the
+    // fraction to microseconds (it doesn't truncate), so allow one microsecond either way —
+    // a wrong zone would be off by hours, not micros
     assertThat(stored)
-        .isEqualTo(
-            LocalDateTime.ofInstant(createdAt.truncatedTo(ChronoUnit.MICROS), ZoneOffset.UTC));
+        .isCloseTo(
+            LocalDateTime.ofInstant(createdAt, ZoneOffset.UTC), within(1, ChronoUnit.MICROS));
     assertThat(userRepository.findById(user.getId()).orElseThrow().getCreatedAt())
-        .isEqualTo(createdAt.truncatedTo(ChronoUnit.MICROS));
+        .isCloseTo(createdAt, within(1, ChronoUnit.MICROS));
 
     String json =
         jsonMapper.writeValueAsString(
