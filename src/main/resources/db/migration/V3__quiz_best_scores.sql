@@ -37,4 +37,12 @@ WHERE rn = 1;
 
 -- Only the old ranking query (best score per difficulty across all attempts) used this index.
 -- "My scores" keeps idx_scores_user_difficulty_total.
-ALTER TABLE scores DROP INDEX idx_scores_difficulty_total;
+-- It was added shortly before Flyway; production may not have it yet if that build was never
+-- deployed, so drop it only when present (MySQL 8.0 has no DROP INDEX IF EXISTS).
+SET @has_idx := (SELECT COUNT(*) FROM information_schema.statistics
+                 WHERE table_schema = DATABASE() AND table_name = 'scores'
+                   AND index_name = 'idx_scores_difficulty_total');
+SET @drop_idx := IF(@has_idx > 0, 'ALTER TABLE scores DROP INDEX idx_scores_difficulty_total', 'DO 0');
+PREPARE drop_idx_stmt FROM @drop_idx;
+EXECUTE drop_idx_stmt;
+DEALLOCATE PREPARE drop_idx_stmt;
