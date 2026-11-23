@@ -5,6 +5,15 @@
 ALTER TABLE quiz_chords MODIFY chord_type VARCHAR(40) NOT NULL;
 ALTER TABLE quiz_chords MODIFY difficulty VARCHAR(10) NOT NULL;
 
+-- The same trap waits in every column Hibernate created as an ENUM: adding a value to the Java
+-- enum later (a sign-in provider, a course, a friendship status…) would store '' or fail.
+-- Convert them all to text up front (idempotent; existing values are kept).
+ALTER TABLE users MODIFY role VARCHAR(20) NOT NULL;
+ALTER TABLE users MODIFY oauth_provider VARCHAR(20) NOT NULL;
+ALTER TABLE scores MODIFY difficulty VARCHAR(10) NOT NULL;
+ALTER TABLE friendships MODIFY status VARCHAR(20) NOT NULL;
+ALTER TABLE course_records MODIFY course VARCHAR(20) NOT NULL;
+
 -- EASY: Major, Minor, Seventh, Minor Seventh, Dim, Aug
 INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) VALUES
 -- Major

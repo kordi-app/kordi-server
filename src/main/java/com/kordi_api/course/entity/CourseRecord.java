@@ -26,8 +26,9 @@ public class CourseRecord extends BaseTimeEntity {
   @JoinColumn(name = "user_id", nullable = false)
   private User user;
 
+  // text, not a MySQL ENUM: a new course must not need a schema change (see data.sql)
   @Enumerated(EnumType.STRING)
-  @Column(nullable = false, length = 20)
+  @Column(nullable = false, columnDefinition = "varchar(20)")
   private Course course;
 
   @Column(name = "time_ms", nullable = false)

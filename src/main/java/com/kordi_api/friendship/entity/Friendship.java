@@ -33,8 +33,9 @@ public class Friendship extends BaseTimeEntity {
   @JoinColumn(name = "receiver_id", nullable = false)
   private User receiver;
 
+  // text, not a MySQL ENUM: a new status must not need a schema change (see data.sql)
   @Enumerated(EnumType.STRING)
-  @Column(nullable = false)
+  @Column(nullable = false, columnDefinition = "varchar(20)")
   private FriendshipStatus status;
 
   /** (작은 id, 큰 id) 쌍 — 방향과 무관하게 두 유저 사이에 관계가 하나만 존재하도록 유니크 제약에 사용 */
