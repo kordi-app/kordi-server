@@ -20,13 +20,13 @@ public final class CharacterCatalog {
   public static final Set<String> BODIES =
       Set.of("cream", "sky", "pink", "mint", "lemon", "lilac", "cocoa");
   public static final Set<String> HATS =
-      Set.of("crown", "star-crown", "ribbon", "beret", "headphones", "flower");
+      Set.of("crown", "star-crown", "flame-crown", "ribbon", "beret", "headphones", "flower");
   public static final Set<String> FACES = Set.of("default", "smile", "sparkle", "sleepy");
   public static final Set<String> ACCESSORIES = Set.of("scarf", "bowtie", "glasses");
 
   /** 보상 모자: 이 코스를 완주해야 쓸 수 있다 */
   public static final Map<String, Course> REWARD_HATS =
-      Map.of("crown", Course.CLOUDS, "star-crown", Course.NIGHT);
+      Map.of("crown", Course.CLOUDS, "star-crown", Course.NIGHT, "flame-crown", Course.RUINS);
 
   public static Optional<String> rewardHatOf(Course course) {
     return REWARD_HATS.entrySet().stream()

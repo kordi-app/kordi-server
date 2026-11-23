@@ -22,7 +22,7 @@ public class CourseRankingController {
   private final CourseRecordService courseRecordService;
 
   /**
-   * @param course 지역 이름 (clouds, night)
+   * @param course 지역 이름 (clouds, night, ruins)
    */
   @GetMapping
   public ApiResponse<List<CourseRankingResponse>> ranking(@RequestParam String course) {
