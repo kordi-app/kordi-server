@@ -1,4 +1,3 @@
-
 FROM eclipse-temurin:21-jdk AS builder
 WORKDIR /app
 
@@ -11,6 +10,10 @@ RUN ./gradlew bootJar --no-daemon
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=builder /app/build/libs/*.jar app.jar
+RUN groupadd --system app && useradd --system --gid app --no-create-home app
+COPY --from=builder --chown=app:app /app/build/libs/*.jar app.jar
+USER app
 EXPOSE 8080
+# size the heap from the container's memory limit instead of the host's
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
 ENTRYPOINT ["java", "-jar", "app.jar"]
