@@ -19,6 +19,8 @@ public interface AdventureRecordRepository extends JpaRepository<AdventureRecord
   @Query("select r from AdventureRecord r where r.user.id = :userId")
   Optional<AdventureRecord> findForUpdate(@Param("userId") Long userId);
 
+  Optional<AdventureRecord> findByUserId(Long userId);
+
   @EntityGraph(attributePaths = "user")
   List<AdventureRecord> findAllByOrderByDefeatedDescAchievedAtAsc(Limit limit);
 

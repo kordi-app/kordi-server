@@ -13,7 +13,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "scores")
+// ranking: per difficulty by score, and the "no better score of the same user" subquery
+@Table(
+    name = "scores",
+    indexes = {
+      @Index(name = "idx_scores_difficulty_total", columnList = "difficulty, total_score"),
+      @Index(
+          name = "idx_scores_user_difficulty_total",
+          columnList = "user_id, difficulty, total_score")
+    })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Score extends BaseTimeEntity {

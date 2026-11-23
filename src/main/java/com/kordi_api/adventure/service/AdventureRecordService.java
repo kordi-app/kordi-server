@@ -54,7 +54,7 @@ public class AdventureRecordService {
       // nothing beaten: tell them where it stands, but don't put an empty run on the board
       int best =
           adventureRecordRepository
-              .findForUpdate(userId)
+              .findByUserId(userId)
               .map(AdventureRecord::getDefeated)
               .orElse(0);
       return new AdventureResult(0, best, rank, false);

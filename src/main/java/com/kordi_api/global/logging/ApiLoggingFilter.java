@@ -33,17 +33,19 @@ public class ApiLoggingFilter extends OncePerRequestFilter {
     }
   }
 
-  /** one-time codes, OAuth state and any token-like value never reach the logs */
+  /** one-time codes, OAuth state, token-like values and world display names never reach the logs */
   static String mask(String query) {
     if (query == null) {
       return null;
     }
     return query.replaceAll(
-        "(?i)(^|&)(code|state|token|accessToken|refreshToken|ticket)=[^&]*", "$1$2=***");
+        "(?i)(^|&)(code|state|token|accessToken|refreshToken|ticket|name)=[^&]*", "$1$2=***");
   }
 
   @Override
   protected boolean shouldNotFilter(HttpServletRequest request) {
-    return request.getRequestURI().equals("/favicon.ico");
+    String uri = request.getRequestURI();
+    // health probes every few seconds would drown the real traffic
+    return uri.equals("/favicon.ico") || uri.equals("/health-check");
   }
 }

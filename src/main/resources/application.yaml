@@ -29,12 +29,13 @@ spring:
         size: 4
 
   jpa:
+    # API server: no lazy loading in views; services return DTOs inside their transactions
+    open-in-view: false
     defer-datasource-initialization: true
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
     show-sql: ${SHOW_SQL:false}
 
