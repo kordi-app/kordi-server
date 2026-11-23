@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
- * 퀴즈 문제 뽑기. 코드 목록은 기동 시 data.sql로 채워진 뒤 바뀌지 않으므로 난이도별로 한 번만 읽어 두고, 요청마다 메모리에서 섞어 뽑는다 (ORDER BY
+ * 퀴즈 문제 뽑기. 코드 목록은 Flyway 마이그레이션으로 채워진 뒤 바뀌지 않으므로 난이도별로 한 번만 읽어 두고, 요청마다 메모리에서 섞어 뽑는다 (ORDER BY
  * RAND()로 매번 DB를 치지 않도록).
  */
 @Service

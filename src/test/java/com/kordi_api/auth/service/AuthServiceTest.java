@@ -14,7 +14,10 @@ import com.kordi_api.auth.repository.RefreshTokenRepository;
 import com.kordi_api.global.exception.CoreException;
 import com.kordi_api.global.security.jwt.JwtProperties;
 import com.kordi_api.global.security.jwt.JwtTokenProvider;
-import java.time.LocalDateTime;
+import com.kordi_api.global.store.InMemoryExpiringStoreFactory;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,10 +36,17 @@ class AuthServiceTest {
     properties.setAccessTokenExpiry(60_000);
     properties.setRefreshTokenExpiry(60_000);
     repository = mock(RefreshTokenRepository.class);
-    authService = new AuthService(new JwtTokenProvider(properties), repository, properties);
+    Clock clock = Clock.systemUTC();
+    authService =
+        new AuthService(
+            new JwtTokenProvider(properties),
+            repository,
+            properties,
+            new InMemoryExpiringStoreFactory(clock),
+            clock);
   }
 
-  private RefreshToken savedToken(String token, LocalDateTime expiredAt) {
+  private RefreshToken savedToken(String token, Instant expiredAt) {
     return RefreshToken.builder().token(token).user(user(1L)).expiredAt(expiredAt).build();
   }
 
@@ -46,7 +56,7 @@ class AuthServiceTest {
 
   @Test
   void 재발급하면_토큰이_회전되고_해시만_저장된다() {
-    RefreshToken saved = savedToken(h("old"), LocalDateTime.now().plusDays(1));
+    RefreshToken saved = savedToken(h("old"), Instant.now().plus(Duration.ofDays(1)));
     given(repository.findByTokenForUpdate(h("old"))).willReturn(Optional.of(saved));
 
     TokenResponse response = authService.reissueToken("old");
@@ -58,7 +68,7 @@ class AuthServiceTest {
 
   @Test
   void 해시_이전에_저장된_평문_토큰도_한_번은_받아준다() {
-    RefreshToken legacy = savedToken("old", LocalDateTime.now().plusDays(1));
+    RefreshToken legacy = savedToken("old", Instant.now().plus(Duration.ofDays(1)));
     given(repository.findByTokenForUpdate(h("old"))).willReturn(Optional.empty());
     given(repository.findByTokenForUpdate("old")).willReturn(Optional.of(legacy));
 
@@ -69,7 +79,7 @@ class AuthServiceTest {
 
   @Test
   void 유예_시간_안의_동시_재발급은_같은_새_토큰을_받는다() {
-    RefreshToken saved = savedToken(h("old"), LocalDateTime.now().plusDays(1));
+    RefreshToken saved = savedToken(h("old"), Instant.now().plus(Duration.ofDays(1)));
     given(repository.findByTokenForUpdate(h("old"))).willReturn(Optional.of(saved));
     TokenResponse first = authService.reissueToken("old");
 
@@ -84,10 +94,9 @@ class AuthServiceTest {
 
   @Test
   void 유예_시간이_지난_직전_토큰은_탈취로_보고_세션을_끝낸다() {
-    RefreshToken saved = savedToken(h("old"), LocalDateTime.now().plusDays(1));
-    LocalDateTime longAgo =
-        LocalDateTime.now().minus(AuthService.ROTATION_GRACE_PERIOD).minusSeconds(1);
-    saved.rotate(h("new"), LocalDateTime.now().plusDays(1), longAgo);
+    RefreshToken saved = savedToken(h("old"), Instant.now().plus(Duration.ofDays(1)));
+    Instant longAgo = Instant.now().minus(AuthService.ROTATION_GRACE_PERIOD).minusSeconds(1);
+    saved.rotate(h("new"), Instant.now().plus(Duration.ofDays(1)), longAgo);
     given(repository.findByTokenForUpdate(anyString())).willReturn(Optional.empty());
     given(repository.findByPreviousToken(h("old"))).willReturn(Optional.of(saved));
 
@@ -97,7 +106,7 @@ class AuthServiceTest {
 
   @Test
   void 만료된_토큰은_삭제하고_거부한다() {
-    RefreshToken saved = savedToken(h("old"), LocalDateTime.now().minusSeconds(1));
+    RefreshToken saved = savedToken(h("old"), Instant.now().minusSeconds(1));
     given(repository.findByTokenForUpdate(h("old"))).willReturn(Optional.of(saved));
 
     assertThatThrownBy(() -> authService.reissueToken("old")).isInstanceOf(CoreException.class);
@@ -106,8 +115,8 @@ class AuthServiceTest {
 
   @Test
   void 로그인하면_기존_토큰을_대체하고_유예_정보를_지운다() {
-    RefreshToken saved = savedToken(h("old"), LocalDateTime.now().plusDays(1));
-    saved.rotate(h("rotated"), LocalDateTime.now().plusDays(1), LocalDateTime.now());
+    RefreshToken saved = savedToken(h("old"), Instant.now().plus(Duration.ofDays(1)));
+    saved.rotate(h("rotated"), Instant.now().plus(Duration.ofDays(1)), Instant.now());
     ReflectionTestUtils.setField(saved, "id", 10L);
     given(repository.findByUserId(1L)).willReturn(Optional.of(saved));
 
@@ -132,7 +141,7 @@ class AuthServiceTest {
   @Test
   void 유출된_해시_값을_토큰으로_보내도_평문_조회로_통과하지_않는다() {
     String leakedHash = h("victim");
-    RefreshToken saved = savedToken(leakedHash, LocalDateTime.now().plusDays(1));
+    RefreshToken saved = savedToken(leakedHash, Instant.now().plus(Duration.ofDays(1)));
     given(repository.findByTokenForUpdate(leakedHash)).willReturn(Optional.of(saved));
 
     assertThatThrownBy(() -> authService.reissueToken(leakedHash))

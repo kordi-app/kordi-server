@@ -9,7 +9,7 @@ import com.kordi_api.global.common.RecordWriter;
 import com.kordi_api.global.exception.CoreException;
 import com.kordi_api.global.exception.CoreExceptionCode;
 import com.kordi_api.user.repository.UserRepository;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +31,7 @@ public class AdventureRecordService {
 
   /** 판 시작: 서버가 시작 시각을 기억한다 (결과의 판 길이는 이것으로 잰다). */
   public String startRun(Long userId) {
-    return runService.start(userId, System.currentTimeMillis());
+    return runService.start(userId);
   }
 
   /**
@@ -41,14 +41,14 @@ public class AdventureRecordService {
   public AdventureResult submit(Long userId, AdventureRecordRequest request) {
     long durationMs =
         runService
-            .finish(userId, request.runId(), System.currentTimeMillis())
+            .finish(userId, request.runId())
             .orElseThrow(() -> new CoreException(CoreExceptionCode.INVALID_REQUEST));
     request.validate(durationMs);
     return recordWriter.write(() -> save(userId, request.defeated(), durationMs));
   }
 
   private AdventureResult save(Long userId, int defeated, long durationMs) {
-    LocalDateTime now = LocalDateTime.now();
+    Instant now = Instant.now();
     long rank = adventureRecordRepository.countAhead(userId, defeated, now) + 1;
     if (defeated == 0) {
       // nothing beaten: tell them where it stands, but don't put an empty run on the board

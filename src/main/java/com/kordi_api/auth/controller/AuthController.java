@@ -52,10 +52,7 @@ public class AuthController {
   public ApiResponse<TokenResponse> exchange(@RequestBody Map<String, String> body) {
     return ApiResponse.success(
         loginCodeService
-            .redeem(
-                body == null ? null : body.get("code"),
-                body == null ? null : body.get("nonce"),
-                System.currentTimeMillis())
+            .redeem(body == null ? null : body.get("code"), body == null ? null : body.get("nonce"))
             .orElseThrow(() -> new CoreException(CoreExceptionCode.INVALID_LOGIN_CODE)));
   }
 }

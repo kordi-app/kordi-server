@@ -7,17 +7,16 @@ import com.kordi_api.global.exception.CoreException;
 import com.kordi_api.global.exception.CoreExceptionCode;
 import com.kordi_api.global.security.jwt.JwtProperties;
 import com.kordi_api.global.security.jwt.JwtTokenProvider;
+import com.kordi_api.global.store.ExpiringStore;
+import com.kordi_api.global.store.ExpiringStoreFactory;
 import com.kordi_api.user.entity.User;
+import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import lombok.RequiredArgsConstructor;
+import java.time.Instant;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 public class AuthService {
 
   /** 회전 직후 직전 토큰을 계속 받아주는 시간. 동시 요청(멀티 탭, RSC 병렬 요청)의 재발급 경합을 흡수한다. */
@@ -26,21 +25,33 @@ public class AuthService {
   private final JwtTokenProvider jwtTokenProvider;
   private final RefreshTokenRepository refreshTokenRepository;
   private final JwtProperties jwtProperties;
+  private final Clock clock;
 
   /**
    * 방금 회전된 토큰 쌍, 직전 토큰의 해시로 찾는다. DB에는 해시만 있어 유예 시간 안의 동시 요청에게 같은 새 토큰을 돌려주려면 여기서 꺼내야 한다 (유예 시간만큼만
-   * 보관, 서버 1대 기준).
+   * 보관).
    */
-  private final Map<String, RecentRotation> recentRotations = new ConcurrentHashMap<>();
+  private final ExpiringStore<TokenResponse> recentRotations;
 
-  private record RecentRotation(TokenResponse tokens, LocalDateTime until) {}
+  public AuthService(
+      JwtTokenProvider jwtTokenProvider,
+      RefreshTokenRepository refreshTokenRepository,
+      JwtProperties jwtProperties,
+      ExpiringStoreFactory stores,
+      Clock clock) {
+    this.jwtTokenProvider = jwtTokenProvider;
+    this.refreshTokenRepository = refreshTokenRepository;
+    this.jwtProperties = jwtProperties;
+    this.clock = clock;
+    this.recentRotations = stores.create("recent-rotation", TokenResponse.class);
+  }
 
   /** 로그인 성공 시 토큰 쌍을 발급한다. 유저의 기존 리프레시 토큰은 대체된다. */
   @Transactional
   public TokenResponse issueTokens(User user) {
     String refreshToken = jwtTokenProvider.createRefreshToken();
     String stored = TokenHasher.hash(refreshToken);
-    LocalDateTime expiredAt = refreshTokenExpiredAt(LocalDateTime.now());
+    Instant expiredAt = refreshTokenExpiredAt(clock.instant());
 
     refreshTokenRepository
         .findByUserId(user.getId())
@@ -57,7 +68,7 @@ public class AuthService {
   // 만료 토큰 삭제 후 예외를 던지므로, 삭제가 롤백되지 않도록 CoreException은 롤백 대상에서 제외
   @Transactional(noRollbackFor = CoreException.class)
   public TokenResponse reissueToken(String refreshToken) {
-    LocalDateTime now = LocalDateTime.now();
+    Instant now = clock.instant();
 
     String hashed = TokenHasher.hash(refreshToken);
 
@@ -91,9 +102,9 @@ public class AuthService {
       throw new CoreException(CoreExceptionCode.INVALID_REFRESH_TOKEN);
     }
     // a parallel request rotated it a moment ago: hand back the same new pair it got
-    RecentRotation recent = recentRotations.get(hashed);
-    if (recent != null && !now.isAfter(recent.until())) {
-      return new TokenResponse(createAccessToken(saved), recent.tokens().refreshToken());
+    var recent = recentRotations.get(hashed);
+    if (recent.isPresent()) {
+      return new TokenResponse(createAccessToken(saved), recent.get().refreshToken());
     }
     // (that pair is gone — e.g. the server restarted in between): rotate once more for this caller
     String newRefreshToken = jwtTokenProvider.createRefreshToken();
@@ -116,7 +127,7 @@ public class AuthService {
     }
   }
 
-  private TokenResponse rotate(RefreshToken saved, LocalDateTime now) {
+  private TokenResponse rotate(RefreshToken saved, Instant now) {
     if (saved.isExpired(now)) {
       refreshTokenRepository.delete(saved);
       throw new CoreException(CoreExceptionCode.INVALID_REFRESH_TOKEN);
@@ -125,8 +136,7 @@ public class AuthService {
     String newRefreshToken = jwtTokenProvider.createRefreshToken();
     saved.rotate(TokenHasher.hash(newRefreshToken), refreshTokenExpiredAt(now), now);
     TokenResponse tokens = new TokenResponse(createAccessToken(saved), newRefreshToken);
-    recentRotations.values().removeIf(r -> now.isAfter(r.until()));
-    recentRotations.put(previousHash, new RecentRotation(tokens, now.plus(ROTATION_GRACE_PERIOD)));
+    recentRotations.put(previousHash, tokens, ROTATION_GRACE_PERIOD);
     return tokens;
   }
 
@@ -135,7 +145,7 @@ public class AuthService {
     return jwtTokenProvider.createAccessToken(user.getId(), user.getRole());
   }
 
-  private LocalDateTime refreshTokenExpiredAt(LocalDateTime now) {
+  private Instant refreshTokenExpiredAt(Instant now) {
     return now.plus(Duration.ofMillis(jwtProperties.getRefreshTokenExpiry()));
   }
 }

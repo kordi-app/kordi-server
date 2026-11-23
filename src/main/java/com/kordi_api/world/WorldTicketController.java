@@ -18,7 +18,6 @@ public class WorldTicketController {
   /** 로그인한 유저가 월드 소켓에서 자기 자신임을 밝힐 1회용 입장권. */
   @PostMapping("/ticket")
   public ApiResponse<Map<String, String>> ticket(@LoginUser Long userId) {
-    return ApiResponse.success(
-        Map.of("ticket", ticketService.issue(userId, System.currentTimeMillis())));
+    return ApiResponse.success(Map.of("ticket", ticketService.issue(userId)));
   }
 }

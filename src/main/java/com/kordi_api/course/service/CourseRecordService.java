@@ -8,7 +8,7 @@ import com.kordi_api.course.entity.CourseRecord;
 import com.kordi_api.course.repository.CourseRecordRepository;
 import com.kordi_api.global.common.RecordWriter;
 import com.kordi_api.user.repository.UserRepository;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -50,7 +50,7 @@ public class CourseRecordService {
     if (user == null) {
       return new CourseResult(timeMs, null, rank, false, null);
     }
-    LocalDateTime now = LocalDateTime.now();
+    Instant now = Instant.now();
     var existing = courseRecordRepository.findForUpdate(userId, course);
     if (existing.isEmpty()) {
       courseRecordRepository.save(CourseRecord.first(user, course, timeMs, now));

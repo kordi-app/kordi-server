@@ -5,6 +5,8 @@ import static org.mockito.Mockito.mock;
 
 import com.kordi_api.character.service.CharacterService;
 import com.kordi_api.course.service.CourseRecordService;
+import com.kordi_api.global.store.InMemoryExpiringStoreFactory;
+import java.time.Clock;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
@@ -20,6 +22,8 @@ class WorldSocketWiringTest {
         .withBean(WorldLobby.class)
         .withBean(CourseTimer.class)
         .withBean(ConnectionLimiter.class)
+        .withBean(Clock.class, Clock::systemDefaultZone)
+        .withBean(InMemoryExpiringStoreFactory.class)
         .withBean(WorldTicketService.class)
         .withBean(CourseRecordService.class, () -> mock(CourseRecordService.class))
         .withBean(CharacterService.class, () -> mock(CharacterService.class))

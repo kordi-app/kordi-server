@@ -2,7 +2,7 @@ package com.kordi_api.adventure.repository;
 
 import com.kordi_api.adventure.entity.AdventureRecord;
 import jakarta.persistence.LockModeType;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Limit;
@@ -32,5 +32,5 @@ public interface AdventureRecordRepository extends JpaRepository<AdventureRecord
         and (r.defeated > :defeated or (r.defeated = :defeated and r.achievedAt < :at))
       """)
   long countAhead(
-      @Param("userId") Long userId, @Param("defeated") int defeated, @Param("at") LocalDateTime at);
+      @Param("userId") Long userId, @Param("defeated") int defeated, @Param("at") Instant at);
 }

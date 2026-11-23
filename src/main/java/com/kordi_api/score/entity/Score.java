@@ -34,7 +34,7 @@ public class Score extends BaseTimeEntity {
   @JoinColumn(name = "user_id", nullable = false)
   private User user;
 
-  // text, not a MySQL ENUM (see data.sql)
+  // text, not a MySQL ENUM (see db/migration/V1__init_schema.sql)
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, columnDefinition = "varchar(10)")
   private Difficulty difficulty;

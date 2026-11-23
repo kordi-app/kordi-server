@@ -2,7 +2,7 @@ package com.kordi_api.score.dto;
 
 import com.kordi_api.quiz.entity.Difficulty;
 import com.kordi_api.score.entity.Score;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public record ScoreResponse(
     Long id,
@@ -10,7 +10,7 @@ public record ScoreResponse(
     int totalScore,
     int correctCount,
     int totalCount,
-    LocalDateTime createdAt) {
+    Instant createdAt) {
   public static ScoreResponse from(Score score) {
     return new ScoreResponse(
         score.getId(),

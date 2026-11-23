@@ -129,7 +129,7 @@ public class WorldSocketHandler extends TextWebSocketHandler {
       var node = jsonMapper.readTree(message.getPayload());
       if ("auth".equals(node.path("t").asString(""))) {
         ticketService
-            .redeem(node.path("ticket").asString(null), now())
+            .redeem(node.path("ticket").asString(null))
             .ifPresent(
                 userId -> {
                   session.getAttributes().put(USER_ID, userId);

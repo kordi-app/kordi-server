@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
-/** 실제 MySQL(Testcontainers)에 스키마와 data.sql까지 올려 컨텍스트가 뜨는지 본다. 외부 env 없이 돈다. */
+/**
+ * 실제 MySQL(Testcontainers)에 Flyway 마이그레이션을 올리고 Hibernate validate까지 통과해 컨텍스트가 뜨는지 본다. 외부 env 없이 돈다.
+ */
 @SpringBootTest(
     properties = {
       "jwt.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",

@@ -14,6 +14,7 @@ RUN groupadd --system app && useradd --system --gid app --no-create-home app
 COPY --from=builder --chown=app:app /app/build/libs/*.jar app.jar
 USER app
 EXPOSE 8080
-# size the heap from the container's memory limit instead of the host's
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+# size the heap from the container's memory limit instead of the host's; run in UTC so "now" and
+# every timestamp the app logs or stores is UTC regardless of the host's zone
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -Duser.timezone=UTC"
 ENTRYPOINT ["java", "-jar", "app.jar"]

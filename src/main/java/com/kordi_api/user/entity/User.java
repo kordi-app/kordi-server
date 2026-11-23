@@ -28,12 +28,14 @@ public class User extends BaseTimeEntity {
   @Column(length = 500)
   private String profileImageUrl;
 
-  // text, not a MySQL ENUM: a new role must not need a schema change (see data.sql)
+  // text, not a MySQL ENUM: a new role must not need a schema change (see
+  // db/migration/V1__init_schema.sql)
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, columnDefinition = "varchar(20)")
   private UserRole role;
 
-  // text, not a MySQL ENUM: adding a sign-in provider must not break sign-ups (see data.sql)
+  // text, not a MySQL ENUM: adding a sign-in provider must not break sign-ups (see
+  // db/migration/V1__init_schema.sql)
   @Enumerated(EnumType.STRING)
   @Column(name = "oauth_provider", nullable = false, columnDefinition = "varchar(20)")
   private OAuthProvider oauthProvider;

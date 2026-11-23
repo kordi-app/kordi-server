@@ -3,7 +3,7 @@ package com.kordi_api.adventure.entity;
 import com.kordi_api.global.common.BaseTimeEntity;
 import com.kordi_api.user.entity.User;
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -37,9 +37,9 @@ public class AdventureRecord extends BaseTimeEntity {
 
   /** 이 기록을 낸 시각 (동률이면 먼저 낸 사람이 위) */
   @Column(name = "achieved_at", nullable = false)
-  private LocalDateTime achievedAt;
+  private Instant achievedAt;
 
-  public static AdventureRecord first(User user, int defeated, long durationMs, LocalDateTime at) {
+  public static AdventureRecord first(User user, int defeated, long durationMs, Instant at) {
     AdventureRecord record = new AdventureRecord();
     record.user = user;
     record.defeated = defeated;
@@ -49,7 +49,7 @@ public class AdventureRecord extends BaseTimeEntity {
   }
 
   /** 더 많이 물리쳤으면 갱신하고 true (같으면 먼저 낸 기록 유지). */
-  public boolean improve(int defeated, long durationMs, LocalDateTime at) {
+  public boolean improve(int defeated, long durationMs, Instant at) {
     if (defeated <= this.defeated) {
       return false;
     }

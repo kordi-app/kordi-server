@@ -33,7 +33,8 @@ public class Friendship extends BaseTimeEntity {
   @JoinColumn(name = "receiver_id", nullable = false)
   private User receiver;
 
-  // text, not a MySQL ENUM: a new status must not need a schema change (see data.sql)
+  // text, not a MySQL ENUM: a new status must not need a schema change (see
+  // db/migration/V1__init_schema.sql)
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, columnDefinition = "varchar(20)")
   private FriendshipStatus status;

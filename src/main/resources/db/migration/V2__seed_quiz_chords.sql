@@ -1,18 +1,6 @@
--- quiz_chords.chord_type / difficulty were first created as MySQL ENUM columns. ddl-auto never
--- widens an ENUM, so the chord types added later (POWER, sus/9th/13th…) were stored as '' by
--- INSERT IGNORE, and any random set that drew one failed with a 500. Keep both columns as text
--- (idempotent: runs on every start).
-ALTER TABLE quiz_chords MODIFY chord_type VARCHAR(40) NOT NULL;
-ALTER TABLE quiz_chords MODIFY difficulty VARCHAR(10) NOT NULL;
-
--- The same trap waits in every column Hibernate created as an ENUM: adding a value to the Java
--- enum later (a sign-in provider, a course, a friendship status…) would store '' or fail.
--- Convert them all to text up front (idempotent; existing values are kept).
-ALTER TABLE users MODIFY role VARCHAR(20) NOT NULL;
-ALTER TABLE users MODIFY oauth_provider VARCHAR(20) NOT NULL;
-ALTER TABLE scores MODIFY difficulty VARCHAR(10) NOT NULL;
-ALTER TABLE friendships MODIFY status VARCHAR(20) NOT NULL;
-ALTER TABLE course_records MODIFY course VARCHAR(20) NOT NULL;
+-- Quiz chord catalog (was data.sql, re-run on every start). Idempotent: INSERT IGNORE skips any
+-- chord already present by the unique key (chord_key, chord_type), so on production — which
+-- already holds these rows — this inserts nothing. Add new chords in a new migration, not here.
 
 -- EASY: Major, Minor, Seventh, Minor Seventh, Dim, Aug
 INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) VALUES
@@ -675,10 +663,3 @@ INSERT IGNORE INTO quiz_chords (chord_key, chord_type, name, notes, difficulty) 
 ('A', 'NINTH_SHARP11', 'A9#11', 'A,C#,E,G,B,D#', 'HARD'),
 ('A#', 'NINTH_SHARP11', 'A#9#11', 'A#,D,F,G#,C,E', 'HARD'),
 ('B', 'NINTH_SHARP11', 'B9#11', 'B,D#,F#,A,C#,F', 'HARD');
-
--- Clean-up after the seed: drop rows that lost their type to the old ENUM, and the copies earlier
--- starts added (INSERT IGNORE skips nothing without a unique key), keeping the oldest of each chord.
-DELETE FROM quiz_chords WHERE chord_type = '';
-DELETE newer FROM quiz_chords newer
-  JOIN quiz_chords older
-    ON older.chord_key = newer.chord_key AND older.chord_type = newer.chord_type AND older.id < newer.id;

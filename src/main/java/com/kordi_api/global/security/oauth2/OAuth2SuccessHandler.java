@@ -53,9 +53,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
     // only a short-lived one-time code goes in the URL (history, logs, Referer);
     // the front end's server trades it for the tokens via POST /api/auth/exchange
-    String code =
-        loginCodeService.issue(
-            tokens, takeLoginNonce(request, response), System.currentTimeMillis());
+    String code = loginCodeService.issue(tokens, takeLoginNonce(request, response));
     String url =
         UriComponentsBuilder.fromUriString(resolveRedirectUrl(request, response))
             .queryParam("code", code)

@@ -3,7 +3,7 @@ package com.kordi_api.course.entity;
 import com.kordi_api.global.common.BaseTimeEntity;
 import com.kordi_api.user.entity.User;
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -26,7 +26,8 @@ public class CourseRecord extends BaseTimeEntity {
   @JoinColumn(name = "user_id", nullable = false)
   private User user;
 
-  // text, not a MySQL ENUM: a new course must not need a schema change (see data.sql)
+  // text, not a MySQL ENUM: a new course must not need a schema change (see
+  // db/migration/V1__init_schema.sql)
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, columnDefinition = "varchar(20)")
   private Course course;
@@ -36,9 +37,9 @@ public class CourseRecord extends BaseTimeEntity {
 
   /** 이 기록을 낸 시각 (동률이면 먼저 낸 사람이 위) */
   @Column(nullable = false)
-  private LocalDateTime achievedAt;
+  private Instant achievedAt;
 
-  public static CourseRecord first(User user, Course course, long timeMs, LocalDateTime at) {
+  public static CourseRecord first(User user, Course course, long timeMs, Instant at) {
     CourseRecord record = new CourseRecord();
     record.user = user;
     record.course = course;
@@ -48,7 +49,7 @@ public class CourseRecord extends BaseTimeEntity {
   }
 
   /** 더 빠르면 갱신하고 true. */
-  public boolean improve(long timeMs, LocalDateTime at) {
+  public boolean improve(long timeMs, Instant at) {
     if (timeMs >= this.timeMs) {
       return false;
     }
