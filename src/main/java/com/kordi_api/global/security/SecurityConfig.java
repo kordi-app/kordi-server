@@ -2,8 +2,10 @@ package com.kordi_api.global.security;
 
 import com.kordi_api.global.security.jwt.JwtAuthenticationFilter;
 import com.kordi_api.global.security.oauth2.CustomOAuth2UserService;
+import com.kordi_api.global.security.oauth2.OAuth2FailureHandler;
 import com.kordi_api.global.security.oauth2.OAuth2RedirectUriCookieFilter;
 import com.kordi_api.global.security.oauth2.OAuth2SuccessHandler;
+import jakarta.servlet.DispatcherType;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +33,7 @@ public class SecurityConfig {
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
   private final CustomOAuth2UserService customOAuth2UserService;
   private final OAuth2SuccessHandler oAuth2SuccessHandler;
+  private final OAuth2FailureHandler oAuth2FailureHandler;
   private final OAuth2RedirectUriCookieFilter oAuth2RedirectUriCookieFilter;
 
   @Value("${app.cors.allowed-origins}")
@@ -53,7 +56,15 @@ public class SecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .cors(cors -> cors.configurationSource(corsConfigurationSource()))
         .authorizeHttpRequests(
-            auth -> auth.requestMatchers(publicPaths).permitAll().anyRequest().authenticated())
+            auth ->
+                auth
+                    // container error dispatches keep their real status instead of becoming 401
+                    .dispatcherTypeMatchers(DispatcherType.ERROR)
+                    .permitAll()
+                    .requestMatchers(publicPaths)
+                    .permitAll()
+                    .anyRequest()
+                    .authenticated())
         // API 서버이므로 미인증 요청은 로그인 페이지 리다이렉트(302) 대신 401 반환
         // (302를 주면 BFF 프록시의 401 자동 재발급이 트리거되지 않음)
         .exceptionHandling(
@@ -64,7 +75,8 @@ public class SecurityConfig {
             oauth2 ->
                 oauth2
                     .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
-                    .successHandler(oAuth2SuccessHandler))
+                    .successHandler(oAuth2SuccessHandler)
+                    .failureHandler(oAuth2FailureHandler))
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
         .addFilterBefore(
             oAuth2RedirectUriCookieFilter, OAuth2AuthorizationRequestRedirectFilter.class)

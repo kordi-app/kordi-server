@@ -62,11 +62,17 @@ public class AuthService {
     String hashed = TokenHasher.hash(refreshToken);
 
     // stored as a hash; rows written before hashing hold the raw token (accepted once, re-stored
-    // hashed)
+    // hashed). A value shaped like a stored hash never goes to that raw lookup: otherwise a leaked
+    // hash column could be replayed as a token.
+    // TODO: drop the raw lookup once refresh tokens issued before 2026-11-20 have expired (14 days)
     var current =
         refreshTokenRepository
             .findByTokenForUpdate(hashed)
-            .or(() -> refreshTokenRepository.findByTokenForUpdate(refreshToken));
+            .or(
+                () ->
+                    TokenHasher.looksLikeHash(refreshToken)
+                        ? java.util.Optional.empty()
+                        : refreshTokenRepository.findByTokenForUpdate(refreshToken));
     if (current.isPresent()) {
       return rotate(current.get(), now);
     }
@@ -104,7 +110,9 @@ public class AuthService {
     }
     if (refreshToken != null && !refreshToken.isBlank()) {
       refreshTokenRepository.deleteByToken(TokenHasher.hash(refreshToken));
-      refreshTokenRepository.deleteByToken(refreshToken); // a row from before hashing
+      if (!TokenHasher.looksLikeHash(refreshToken)) {
+        refreshTokenRepository.deleteByToken(refreshToken); // a row from before hashing
+      }
     }
   }
 

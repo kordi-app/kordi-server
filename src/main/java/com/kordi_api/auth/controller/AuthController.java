@@ -50,6 +50,6 @@ public class AuthController {
     return ApiResponse.success(
         loginCodeService
             .redeem(body == null ? null : body.get("code"), System.currentTimeMillis())
-            .orElseThrow(() -> new CoreException(CoreExceptionCode.INVALID_REFRESH_TOKEN)));
+            .orElseThrow(() -> new CoreException(CoreExceptionCode.INVALID_LOGIN_CODE)));
   }
 }

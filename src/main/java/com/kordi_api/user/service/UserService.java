@@ -8,6 +8,7 @@ import com.kordi_api.user.dto.UserUpdateRequest;
 import com.kordi_api.user.entity.User;
 import com.kordi_api.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +33,12 @@ public class UserService {
     }
 
     user.updateNickname(request.nickname());
+    try {
+      // flush here so a concurrent rename to the same nickname surfaces as 3002, not 1008
+      userRepository.flush();
+    } catch (DataIntegrityViolationException e) {
+      throw new CoreException(CoreExceptionCode.NICKNAME_DUPLICATED);
+    }
     return UserResponse.from(user);
   }
 

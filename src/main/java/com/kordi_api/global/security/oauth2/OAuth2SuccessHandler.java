@@ -17,6 +17,7 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.WebUtils;
 
 @Component
@@ -53,7 +54,11 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     // only a short-lived one-time code goes in the URL (history, logs, Referer);
     // the front end's server trades it for the tokens via POST /api/auth/exchange
     String code = loginCodeService.issue(tokens, System.currentTimeMillis());
-    String url = resolveRedirectUrl(request, response) + "?code=" + code;
+    String url =
+        UriComponentsBuilder.fromUriString(resolveRedirectUrl(request, response))
+            .queryParam("code", code)
+            .build()
+            .toUriString();
 
     getRedirectStrategy().sendRedirect(request, response, url);
   }

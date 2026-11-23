@@ -128,4 +128,15 @@ class AuthServiceTest {
     authService.logout(7L, null);
     verify(repository).deleteByUserId(7L);
   }
+
+  @Test
+  void 유출된_해시_값을_토큰으로_보내도_평문_조회로_통과하지_않는다() {
+    String leakedHash = h("victim");
+    RefreshToken saved = savedToken(leakedHash, LocalDateTime.now().plusDays(1));
+    given(repository.findByTokenForUpdate(leakedHash)).willReturn(Optional.of(saved));
+
+    assertThatThrownBy(() -> authService.reissueToken(leakedHash))
+        .isInstanceOf(CoreException.class);
+    assertThat(saved.getToken()).isEqualTo(leakedHash);
+  }
 }

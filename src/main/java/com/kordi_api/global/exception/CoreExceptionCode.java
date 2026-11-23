@@ -24,6 +24,7 @@ public enum CoreExceptionCode {
 
   // 인증 (2xxx)
   INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, 2001, "인증이 만료되었습니다."),
+  INVALID_LOGIN_CODE(HttpStatus.UNAUTHORIZED, 2002, "로그인 코드가 유효하지 않거나 만료되었습니다."),
 
   // 유저 (3xxx)
   USER_NOT_FOUND(HttpStatus.NOT_FOUND, 3001, "유저를 찾을 수 없습니다."),
