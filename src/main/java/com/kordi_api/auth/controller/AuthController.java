@@ -1,5 +1,6 @@
 package com.kordi_api.auth.controller;
 
+import com.kordi_api.auth.dto.LoginCodeExchangeRequest;
 import com.kordi_api.auth.dto.TokenResponse;
 import com.kordi_api.auth.service.AuthService;
 import com.kordi_api.auth.service.LoginCodeService;
@@ -7,7 +8,6 @@ import com.kordi_api.global.common.ApiResponse;
 import com.kordi_api.global.exception.CoreException;
 import com.kordi_api.global.exception.CoreExceptionCode;
 import com.kordi_api.global.security.LoginUser;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.*;
@@ -49,10 +49,11 @@ public class AuthController {
    * ({@link LoginCodeService}).
    */
   @PostMapping("/exchange")
-  public ApiResponse<TokenResponse> exchange(@RequestBody Map<String, String> body) {
+  public ApiResponse<TokenResponse> exchange(
+      @RequestBody(required = false) LoginCodeExchangeRequest body) {
     return ApiResponse.success(
         loginCodeService
-            .redeem(body == null ? null : body.get("code"), body == null ? null : body.get("nonce"))
+            .redeem(body == null ? null : body.code(), body == null ? null : body.nonce())
             .orElseThrow(() -> new CoreException(CoreExceptionCode.INVALID_LOGIN_CODE)));
   }
 }

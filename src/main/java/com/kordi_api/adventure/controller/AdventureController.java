@@ -3,11 +3,11 @@ package com.kordi_api.adventure.controller;
 import com.kordi_api.adventure.dto.AdventureRankingResponse;
 import com.kordi_api.adventure.dto.AdventureRecordRequest;
 import com.kordi_api.adventure.dto.AdventureResult;
+import com.kordi_api.adventure.dto.AdventureRunResponse;
 import com.kordi_api.adventure.service.AdventureRecordService;
 import com.kordi_api.global.common.ApiResponse;
 import com.kordi_api.global.security.LoginUser;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,8 +21,8 @@ public class AdventureController {
 
   /** 판 시작: 결과를 낼 때 쓸 runId (판 길이는 서버가 이 시점부터 잰다). */
   @PostMapping("/runs")
-  public ApiResponse<Map<String, String>> startRun(@LoginUser Long userId) {
-    return ApiResponse.success(Map.of("runId", adventureRecordService.startRun(userId)));
+  public ApiResponse<AdventureRunResponse> startRun(@LoginUser Long userId) {
+    return ApiResponse.success(new AdventureRunResponse(adventureRecordService.startRun(userId)));
   }
 
   @PostMapping("/records")
