@@ -26,6 +26,12 @@ public class ScoreService {
   private final ScoreRepository scoreRepository;
   private final UserRepository userRepository;
 
+  /**
+   * 예전 클라이언트의 점수 저장: 시도 기록에만 남긴다 (최고 기록·랭킹 아님).
+   *
+   * @deprecated {@link com.kordi_api.score.controller.ScoreController#saveScore}와 함께 클라이언트 배포 후 삭제
+   */
+  @Deprecated
   @Transactional
   public ScoreResponse saveScore(Long userId, ScoreRequest request) {
     User user =

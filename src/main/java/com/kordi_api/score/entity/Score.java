@@ -13,15 +13,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-// ranking: per difficulty by score, and the "no better score of the same user" subquery
+/** 코드 퀴즈 시도 기록 (한 판에 한 줄, "내 기록"). 랭킹은 이 표가 아니라 유저·난이도당 한 줄인 {@link QuizBestScore}를 읽는다. */
+// my scores by difficulty, best first
 @Table(
     name = "scores",
-    indexes = {
-      @Index(name = "idx_scores_difficulty_total", columnList = "difficulty, total_score"),
-      @Index(
-          name = "idx_scores_user_difficulty_total",
-          columnList = "user_id, difficulty, total_score")
-    })
+    indexes =
+        @Index(
+            name = "idx_scores_user_difficulty_total",
+            columnList = "user_id, difficulty, total_score"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Score extends BaseTimeEntity {
@@ -59,9 +58,8 @@ public class Score extends BaseTimeEntity {
   }
 
   /**
-   * 퀴즈 결과를 기록한다. 점수는 클라이언트가 계산하므로 게임 규칙상 불가능한 값만 걸러낸다.
-   *
-   * <p>한계: 규칙 범위 안의 조작된 점수는 막지 못한다. 완전히 막으려면 서버가 퀴즈 세션과 정답 판정을 직접 가져야 한다.
+   * 퀴즈 결과를 기록한다. 게임 규칙상 불가능한 값만 걸러낸다 — 점수 자체는 퀴즈 세션(서버 채점)이 계산한 값이다. 예전 클라이언트가 보내는 {@code POST
+   * /api/scores}도 이 경로로 들어오지만 그 값은 기록에만 남고 랭킹에는 들어가지 않는다.
    */
   public static Score record(
       User user, Difficulty difficulty, int totalScore, int correctCount, int totalCount) {

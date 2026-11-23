@@ -73,7 +73,7 @@ class SchemaMigrationTest {
         jdbc.queryForList(
             "select version from flyway_schema_history where success = 1 order by installed_rank",
             String.class);
-    assertThat(applied).startsWith("1", "2");
+    assertThat(applied).startsWith("1", "2", "3");
     assertThat(jdbc.queryForObject("select count(*) from quiz_chords", Long.class)).isEqualTo(576L);
   }
 
@@ -96,7 +96,10 @@ class SchemaMigrationTest {
     }
   }
 
-  /** 운영처럼 테이블은 있고 flyway_schema_history는 없는 DB: V1은 건너뛰고(baseline 1) V2부터 돈다. */
+  /**
+   * 운영처럼 테이블은 있고 flyway_schema_history는 없는 DB: V1은 건너뛰고(baseline 1) V2부터 돈다. 운영 스키마는 V1 그대로이므로 V1
+   * 파일로 만든다. V3가 시도 기록(scores)에서 유저·난이도별 최고 기록을 옮기는지도 본다.
+   */
   @Test
   void existingDatabaseIsBaselinedAtVersionOne() throws Exception {
     String legacy = "legacy_prod_like";
@@ -105,7 +108,10 @@ class SchemaMigrationTest {
       st.execute("drop database if exists " + legacy);
       st.execute("create database " + legacy);
       st.execute("use " + legacy);
-      for (String sql : Files.readString(Path.of(HIBERNATE_DDL)).split(";")) {
+      String v1 =
+          Files.readString(Path.of("src/main/resources/db/migration/V1__init_schema.sql"))
+              .replaceAll("(?m)^--.*$", "");
+      for (String sql : v1.split(";")) {
         if (!sql.isBlank()) {
           st.execute(sql);
         }
@@ -113,6 +119,24 @@ class SchemaMigrationTest {
       st.execute(
           "insert into quiz_chords (chord_key, chord_type, name, notes, difficulty)"
               + " values ('C', 'MAJOR', 'C', 'C,E,G', 'EASY')");
+      st.execute(
+          "insert into users (id, email, nickname, oauth_id, oauth_provider, role) values"
+              + " (1, 'a@example.com', 'a', 'a', 'GOOGLE', 'USER'),"
+              + " (2, 'b@example.com', 'b', 'b', 'GOOGLE', 'USER')");
+      st.execute(
+          "insert into scores"
+              + " (id, created_at, user_id, difficulty, total_score, correct_count, total_count)"
+              + " values"
+              // user 1, EASY: best 300 reached twice -> the earlier one (id 2) counts
+              + " (1, '2026-01-01 00:00:01', 1, 'EASY', 100, 1, 10),"
+              + " (2, '2026-01-01 00:00:02', 1, 'EASY', 300, 2, 10),"
+              + " (3, '2026-01-01 00:00:03', 1, 'EASY', 300, 3, 10),"
+              // user 1, MEDIUM: only empty games -> not on the board
+              + " (4, '2026-01-01 00:00:04', 1, 'MEDIUM', 0, 0, 10),"
+              // user 2, EASY and HARD
+              + " (5, '2026-01-01 00:00:05', 2, 'EASY', 250, 2, 10),"
+              + " (6, '2026-01-01 00:00:06', 2, 'HARD', 50, 1, 10),"
+              + " (7, '2026-01-01 00:00:07', 2, 'HARD', 180, 1, 10)");
     }
     String url = "jdbc:mysql://" + mysql.getHost() + ":" + mysql.getMappedPort(3306) + "/" + legacy;
     Flyway.configure()
@@ -132,13 +156,48 @@ class SchemaMigrationTest {
       while (rs.next()) {
         history.add(rs.getString(1) + ":" + rs.getString(2));
       }
-      assertThat(history).startsWith("1:BASELINE", "2:SQL");
+      assertThat(history).startsWith("1:BASELINE", "2:SQL", "3:SQL");
     }
     try (Connection root = rootConnection();
         Statement st = root.createStatement();
         ResultSet rs = st.executeQuery("select count(*) from " + legacy + ".quiz_chords")) {
       rs.next();
       assertThat(rs.getLong(1)).isEqualTo(576L); // the existing row was kept, not duplicated
+    }
+    try (Connection root = rootConnection();
+        Statement st = root.createStatement();
+        ResultSet rs =
+            st.executeQuery(
+                "select user_id, difficulty, total_score, correct_count, total_count, achieved_at"
+                    + " from "
+                    + legacy
+                    + ".quiz_best_scores order by difficulty, total_score desc, achieved_at")) {
+      List<String> best = new ArrayList<>();
+      while (rs.next()) {
+        best.add(
+            rs.getLong(1)
+                + " "
+                + rs.getString(2)
+                + " "
+                + rs.getInt(3)
+                + " "
+                + rs.getInt(4)
+                + "/"
+                + rs.getInt(5)
+                + " "
+                + rs.getObject(6, LocalDateTime.class));
+      }
+      assertThat(best)
+          .containsExactly(
+              "1 EASY 300 2/10 2026-01-01T00:00:02",
+              "2 EASY 250 2/10 2026-01-01T00:00:05",
+              "2 HARD 180 1/10 2026-01-01T00:00:07");
+    }
+    try (Connection root = rootConnection();
+        Statement st = root.createStatement();
+        ResultSet rs = st.executeQuery("select count(*) from " + legacy + ".scores")) {
+      rs.next();
+      assertThat(rs.getLong(1)).isEqualTo(7L); // the attempt history stays as it was
     }
   }
 

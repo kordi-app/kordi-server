@@ -4,7 +4,8 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * 홈 월드의 점프 코스. 클라이언트 widgets/piano-world/engine/course.ts의 COURSES와 짝 (engine/course-contract.test.ts가 이 값들을 고정).
+ * 홈 월드의 점프 코스. 클라이언트 widgets/piano-world/engine/course.ts의 COURSES와 짝
+ * (engine/course-contract.test.ts가 이 값들을 고정).
  *
  * @param region 코스가 있는 월드 지역 이름 (WorldLobby.REGIONS)
  * @param goalY 골 발판 윗면 높이: 여기까지 올라오면 완주

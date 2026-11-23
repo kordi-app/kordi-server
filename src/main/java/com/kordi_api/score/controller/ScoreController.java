@@ -18,6 +18,14 @@ public class ScoreController {
 
   private final ScoreService scoreService;
 
+  /**
+   * 클라이언트가 계산한 점수를 그대로 받던 예전 저장 경로. 이제 "내 기록"에만 남고 최고 기록·랭킹에는 반영되지 않는다 (랭킹은 서버가 채점하는 {@code POST
+   * /api/quiz/sessions/{id}/result}만 반영).
+   *
+   * @deprecated 퀴즈 세션 흐름으로 바뀐 클라이언트가 배포되기 전까지 예전 클라이언트를 위해 남겨 둔다. 클라이언트 배포 후 이 엔드포인트와 {@link
+   *     ScoreRequest}, {@link ScoreService#saveScore}를 지운다.
+   */
+  @Deprecated
   @PostMapping
   public ApiResponse<ScoreResponse> saveScore(
       @LoginUser Long userId, @Valid @RequestBody ScoreRequest request) {
