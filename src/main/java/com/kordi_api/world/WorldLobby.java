@@ -36,7 +36,7 @@ public class WorldLobby {
   static final int MAX_NAME_LENGTH = 12;
   static final long MIN_MOVE_INTERVAL_MS = 30;
 
-  /** 홈 월드의 섬(그랜드 홀)이 가장 넓다: 클라이언트 model/island.ts ISLAND_BOUNDS(|x| ≤ 98, -70 ≤ z ≤ 40)보다 여유 있게 */
+  /** 홈 월드의 섬(그랜드 홀)이 가장 넓다: 클라이언트 widgets/piano-world/engine/island.ts ISLAND_BOUNDS(|x| ≤ 98, -70 ≤ z ≤ 40)보다 여유 있게 */
   static final double MAX_ABS_X = 110;
 
   static final double MAX_ABS_Z = 85;
@@ -46,7 +46,7 @@ public class WorldLobby {
   static final String DEFAULT_NAME = "손님";
   static final String DEFAULT_REGION = "hall";
 
-  /** 클라이언트 model/regions.ts의 REGION_IDS와 짝 */
+  /** 클라이언트 widgets/piano-world/engine/regions.ts의 REGION_IDS와 짝 */
   static final Set<String> REGIONS =
       Set.of("hall", "neon", "cathedral", "lounge", "clouds", "night");
 
