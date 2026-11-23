@@ -25,6 +25,7 @@ class CourseRecordTest {
   @Test
   void 지역_이름으로_코스를_찾는다() {
     assertThat(Course.ofRegion("night")).contains(Course.NIGHT);
+    assertThat(Course.ofRegion("ruins")).contains(Course.RUINS);
     assertThat(Course.ofRegion("hall")).isEmpty();
   }
 }

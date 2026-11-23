@@ -15,7 +15,9 @@ public enum Course {
   /** 26칸, 0.7씩 상승 → 골 0.8 + 26 × 0.7 */
   CLOUDS("clouds", 19.0, 15_000),
   /** 22칸, 0.75씩 상승 → 골 0.8 + 22 × 0.75 */
-  NIGHT("night", 17.3, 13_000);
+  NIGHT("night", 17.3, 13_000),
+  /** 폭풍의 신전: 30칸, 0.8씩 상승 → 골 0.8 + 30 × 0.8. 오르내리는 발판·종 발판·용의 불길 때문에 기다려야 하는 구간이 있다 */
+  RUINS("ruins", 24.8, 17_000);
 
   private final String region;
   private final double goalY;

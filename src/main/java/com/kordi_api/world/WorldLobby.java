@@ -51,7 +51,7 @@ public class WorldLobby {
 
   /** 클라이언트 widgets/piano-world/engine/regions.ts의 REGION_IDS와 짝 */
   static final Set<String> REGIONS =
-      Set.of("hall", "neon", "cathedral", "lounge", "clouds", "night");
+      Set.of("hall", "neon", "cathedral", "lounge", "clouds", "night", "ruins");
 
   /** 클라이언트 감정 표현 목록과 짝 */
   static final Set<String> EMOTES = Set.of("wave", "clap", "dance", "sit");
