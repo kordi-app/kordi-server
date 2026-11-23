@@ -53,7 +53,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
     // only a short-lived one-time code goes in the URL (history, logs, Referer);
     // the front end's server trades it for the tokens via POST /api/auth/exchange
-    String code = loginCodeService.issue(tokens, System.currentTimeMillis());
+    String code =
+        loginCodeService.issue(
+            tokens, takeLoginNonce(request, response), System.currentTimeMillis());
     String url =
         UriComponentsBuilder.fromUriString(resolveRedirectUrl(request, response))
             .queryParam("code", code)
@@ -74,6 +76,17 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
     String requestedUrl = cookie.getValue();
     return redirectUriValidator.isAllowed(requestedUrl) ? requestedUrl : redirectUrl;
+  }
+
+  /** 로그인을 시작한 브라우저의 nonce (한 번 쓰고 지운다). */
+  private String takeLoginNonce(HttpServletRequest request, HttpServletResponse response) {
+    Cookie cookie =
+        WebUtils.getCookie(request, OAuth2RedirectUriCookieFilter.LOGIN_NONCE_COOKIE_NAME);
+    if (cookie == null || cookie.getValue().isBlank()) {
+      return null;
+    }
+    expireCookie(response, cookie.getName());
+    return cookie.getValue();
   }
 
   private void expireCookie(HttpServletResponse response, String name) {

@@ -44,12 +44,18 @@ public class AuthController {
     return ApiResponse.success();
   }
 
-  /** 로그인 직후 받은 1회용 코드를 토큰 쌍으로 바꾼다 (프론트 서버가 서버 대 서버로 호출). */
+  /**
+   * 로그인 직후 받은 1회용 코드를 토큰 쌍으로 바꾼다 (프론트 서버가 서버 대 서버로 호출). {@code nonce}는 로그인을 시작한 브라우저의 것이어야 한다
+   * ({@link LoginCodeService}).
+   */
   @PostMapping("/exchange")
   public ApiResponse<TokenResponse> exchange(@RequestBody Map<String, String> body) {
     return ApiResponse.success(
         loginCodeService
-            .redeem(body == null ? null : body.get("code"), System.currentTimeMillis())
+            .redeem(
+                body == null ? null : body.get("code"),
+                body == null ? null : body.get("nonce"),
+                System.currentTimeMillis())
             .orElseThrow(() -> new CoreException(CoreExceptionCode.INVALID_LOGIN_CODE)));
   }
 }
