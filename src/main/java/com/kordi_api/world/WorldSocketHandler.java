@@ -1,5 +1,6 @@
 package com.kordi_api.world;
 
+import com.kordi_api.character.entity.CharacterCatalog;
 import com.kordi_api.character.service.AppearanceChanged;
 import com.kordi_api.character.service.CharacterService;
 import com.kordi_api.course.dto.CourseResult;
@@ -37,6 +38,7 @@ import tools.jackson.databind.json.JsonMapper;
  *         <li>{@code join} / {@code leave}: 같은 채널 입·퇴장 (즉시)
  *         <li>{@code moves}: 같은 채널에서 움직인 사람들의 최신 위치 ({@value #TICK_MS}ms마다 묶어서)
  *         <li>{@code online}: 전체·지역별 접속자 수 ({@value #ONLINE_MS}ms마다)
+ *         <li>{@code pet}: 펫을 새로 얻었다 ({@code item}). 그 사람에게만
  *         <li>{@code bell}: 같은 채널 누군가 자정의 종을 쳤다 ({@code left}: 별 계단이 열려 있을 시간, ms). 친 사람에게는 보내지 않는다
  *       </ul>
  *   <li>{@code look}: 같은 채널 누군가의 꾸민 모습이 바뀜 (회원이 로그인을 밝혔을 때, 꾸미기를 저장했을 때)
@@ -46,6 +48,7 @@ import tools.jackson.databind.json.JsonMapper;
  *         <li>{@link WorldMove} (x, y, z, h, m, e)
  *         <li>{@code {"t":"auth","ticket":...}}: 로그인 유저임을 밝힘 ({@link WorldTicketService})
  *         <li>{@code {"t":"bell"}}: 밤에 종탑의 종을 쳤다 ({@link WorldLobby#ringBell})
+ *         <li>{@code {"t":"whale"}}: 꿈의 바다 꼭대기에서 고래가 노래했다 → 회원이면 달고래 펫 ({@link #adoptWhale})
  *       </ul>
  * </ul>
  *
@@ -75,6 +78,12 @@ public class WorldSocketHandler extends TextWebSocketHandler {
   private static final int SEND_TIME_LIMIT_MS = 2_000;
   private static final int BUFFER_SIZE_LIMIT = 64 * 1024;
   private static final int MAX_INCOMING_LENGTH = 256;
+
+  /**
+   * 꿈의 바다에 이만큼은 있어야 고래를 만났다고 믿는다: 다섯 음을 찾아 꼭대기까지 오르려면 걸어서도 몇 분은 걸린다. 지역을 옮기면 소켓을 새로 열므로 접속 시각이 곧 도착
+   * 시각이다.
+   */
+  static final long WHALE_MIN_STAY_MS = 60_000;
 
   private final WorldLobby lobby;
   private final CourseTimer courseTimer;
@@ -141,6 +150,10 @@ public class WorldSocketHandler extends TextWebSocketHandler {
                         bell.channel(), Map.of("t", "bell", "left", bell.openMs()), id));
         return;
       }
+      if ("whale".equals(type)) {
+        adoptWhale(session, id);
+        return;
+      }
       if ("auth".equals(type)) {
         ticketService
             .redeem(node.path("ticket").asString(null))
@@ -158,6 +171,32 @@ public class WorldSocketHandler extends TextWebSocketHandler {
       }
     } catch (JacksonException e) {
       // 형식이 틀린 메시지는 무시
+    }
+  }
+
+  /**
+   * 고래가 노래했다는 알림: 회원이 꿈의 바다에 충분히 머물렀고 지금 꼭대기에 서 있으면 달고래 펫을 준다. 처음 얻었을 때만 그 사람에게 알리고, 모습 변경은 {@link
+   * #onAppearanceChanged}가 채널에 퍼뜨린다. 비회원은 클라이언트가 브라우저에 기억한다.
+   */
+  private void adoptWhale(WebSocketSession session, String id) {
+    Long userId = (Long) session.getAttributes().get(USER_ID);
+    Long connectedAt = (Long) session.getAttributes().get(CONNECTED_AT);
+    if (userId == null
+        || connectedAt == null
+        || now() - connectedAt < WHALE_MIN_STAY_MS
+        || !lobby.atWhaleSummit(id)) {
+      return;
+    }
+    boolean adopted;
+    try {
+      adopted = characterService.grantPet(userId, CharacterCatalog.MOON_WHALE);
+    } catch (RuntimeException e) {
+      log.warn("[World] pet grant failed: {}", e.getMessage());
+      return;
+    }
+    WebSocketSession live = sessions.get(id);
+    if (adopted && live != null) {
+      send(live, Map.of("t", "pet", "item", CharacterCatalog.MOON_WHALE));
     }
   }
 

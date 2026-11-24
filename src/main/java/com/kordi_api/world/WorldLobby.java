@@ -51,7 +51,17 @@ public class WorldLobby {
 
   /** 클라이언트 widgets/piano-world/engine/regions.ts의 REGION_IDS와 짝 */
   static final Set<String> REGIONS =
-      Set.of("hall", "neon", "cathedral", "lounge", "clouds", "night", "ruins");
+      Set.of("hall", "neon", "cathedral", "lounge", "clouds", "night", "ruins", "whale");
+
+  /**
+   * 꿈의 바다(whale) 꼭대기 섬: 클라이언트 engine/dream-sea.ts의 summit (x 2, z -38, 높이 7.2). 고래가 노래했다는 알림은 여기 서
+   * 있을 때만 믿는다
+   */
+  static final double WHALE_SUMMIT_X = 2;
+
+  static final double WHALE_SUMMIT_Z = -38;
+  static final double WHALE_SUMMIT_REACH = 5;
+  static final double WHALE_SUMMIT_MIN_Y = 6.5;
 
   /**
    * 자정의 종: 그랜드 홀 종탑 꼭대기의 종을 밤에 치면 그 채널에 하늘섬으로 가는 별 계단이 이만큼 열린다. 밤인지는 치는 사람의 시계로 클라이언트가 정한다 (섬의 하늘이
@@ -185,6 +195,20 @@ public class WorldLobby {
       channel.skyUntil = nowMillis + SKY_OPEN_MS;
     }
     return Optional.of(new Bell(channelNo, SKY_OPEN_MS));
+  }
+
+  /** 꿈의 바다 꼭대기 섬에 서 있는지 (서버가 마지막으로 받은 위치 기준). */
+  public boolean atWhaleSummit(String id) {
+    ChannelKey channelNo = channelOf.get(id);
+    if (channelNo == null || !"whale".equals(channelNo.region())) {
+      return false;
+    }
+    Channel channel = channels.get(channelNo);
+    WorldPlayer player = channel == null ? null : channel.players.get(id);
+    return player != null
+        && player.y() >= WHALE_SUMMIT_MIN_Y
+        && Math.hypot(player.x() - WHALE_SUMMIT_X, player.z() - WHALE_SUMMIT_Z)
+            <= WHALE_SUMMIT_REACH;
   }
 
   /** 그 채널의 별 계단이 앞으로 열려 있을 시간 (닫혔으면 0). 나중에 들어온 사람에게 알려준다. */

@@ -174,7 +174,7 @@ class WorldLobbyTest {
   void 모습을_입히면_이후_이동에도_유지된다() {
     WorldLobby lobby = new WorldLobby();
     String id = lobby.join("hall", "a").orElseThrow().player().id();
-    WorldLook look = new WorldLook("mint", "crown", "smile", null);
+    WorldLook look = new WorldLook("mint", "crown", "smile", null, null);
 
     assertThat(lobby.dress(id, look)).isPresent();
     lobby.move(id, new WorldMove(1.0, 0.0, 2.0, 0.0, null, null), 1_000);
@@ -225,5 +225,24 @@ class WorldLobbyTest {
     assertThat(lobby.ringBell(a, 2_000)).isPresent();
     assertThat(lobby.ringBell(a, 2_000 + WorldLobby.BELL_COOLDOWN_MS - 1)).isEmpty();
     assertThat(lobby.ringBell(a, 2_000 + WorldLobby.BELL_COOLDOWN_MS)).isPresent();
+  }
+
+  @Test
+  void 꿈의_바다_꼭대기에_선_사람만_고래를_만났다고_본다() {
+    WorldLobby lobby = new WorldLobby();
+    WorldMove summit =
+        new WorldMove(WorldLobby.WHALE_SUMMIT_X, 7.2, WorldLobby.WHALE_SUMMIT_Z, 0.0, null, null);
+    WorldMove below =
+        new WorldMove(WorldLobby.WHALE_SUMMIT_X, 0.0, WorldLobby.WHALE_SUMMIT_Z, 0.0, null, null);
+    String up = lobby.join("whale", "up").orElseThrow().player().id();
+    lobby.move(up, summit, 1_000);
+    String low = lobby.join("whale", "low").orElseThrow().player().id();
+    lobby.move(low, below, 1_000);
+    String hall = lobby.join("hall", "hall").orElseThrow().player().id();
+    lobby.move(hall, summit, 1_000);
+
+    assertThat(lobby.atWhaleSummit(up)).isTrue();
+    assertThat(lobby.atWhaleSummit(low)).isFalse();
+    assertThat(lobby.atWhaleSummit(hall)).isFalse();
   }
 }

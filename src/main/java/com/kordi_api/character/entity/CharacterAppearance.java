@@ -36,6 +36,10 @@ public class CharacterAppearance extends BaseTimeEntity {
   @Column(length = 20)
   private String accessory;
 
+  /** 따라다니는 펫, 없으면 null */
+  @Column(length = 20)
+  private String pet;
+
   public static CharacterAppearance defaultFor(User user) {
     CharacterAppearance appearance = new CharacterAppearance();
     appearance.user = user;
@@ -45,14 +49,19 @@ public class CharacterAppearance extends BaseTimeEntity {
   }
 
   /** 값 검증은 서비스에서 끝난 뒤 호출한다. */
-  public void change(String body, String hat, String face, String accessory) {
+  public void change(String body, String hat, String face, String accessory, String pet) {
     this.body = body;
     this.hat = hat;
     this.face = face;
     this.accessory = accessory;
+    this.pet = pet;
   }
 
   public void wear(String hat) {
     this.hat = hat;
+  }
+
+  public void adopt(String pet) {
+    this.pet = pet;
   }
 }

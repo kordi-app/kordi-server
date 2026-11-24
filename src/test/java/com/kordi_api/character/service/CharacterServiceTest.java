@@ -15,12 +15,12 @@ class CharacterServiceTest {
     assertThatCode(
             () ->
                 CharacterService.validate(
-                    new AppearanceDto("mint", "beret", "smile", "scarf"), List.of()))
+                    new AppearanceDto("mint", "beret", "smile", "scarf", null), List.of()))
         .doesNotThrowAnyException();
     assertThatCode(
             () ->
                 CharacterService.validate(
-                    new AppearanceDto("cream", null, "default", null), List.of()))
+                    new AppearanceDto("cream", null, "default", null, null), List.of()))
         .doesNotThrowAnyException();
   }
 
@@ -29,12 +29,12 @@ class CharacterServiceTest {
     assertThatThrownBy(
             () ->
                 CharacterService.validate(
-                    new AppearanceDto("gold", null, "default", null), List.of()))
+                    new AppearanceDto("gold", null, "default", null, null), List.of()))
         .isInstanceOf(CoreException.class);
     assertThatThrownBy(
             () ->
                 CharacterService.validate(
-                    new AppearanceDto("cream", "tophat", "default", null), List.of()))
+                    new AppearanceDto("cream", "tophat", "default", null, null), List.of()))
         .isInstanceOf(CoreException.class);
   }
 
@@ -43,12 +43,33 @@ class CharacterServiceTest {
     assertThatThrownBy(
             () ->
                 CharacterService.validate(
-                    new AppearanceDto("cream", "star-crown", "default", null), List.of("crown")))
+                    new AppearanceDto("cream", "star-crown", "default", null, null),
+                    List.of("crown")))
         .isInstanceOf(CoreException.class);
     assertThatCode(
             () ->
                 CharacterService.validate(
-                    new AppearanceDto("cream", "crown", "default", null), List.of("crown")))
+                    new AppearanceDto("cream", "crown", "default", null, null), List.of("crown")))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  void 펫은_얻은_뒤에만_데리고_다닐_수_있다() {
+    assertThatThrownBy(
+            () ->
+                CharacterService.validate(
+                    new AppearanceDto("cream", null, "default", null, "moon-whale"), List.of()))
+        .isInstanceOf(CoreException.class);
+    assertThatThrownBy(
+            () ->
+                CharacterService.validate(
+                    new AppearanceDto("cream", null, "default", null, "dragon"), List.of("dragon")))
+        .isInstanceOf(CoreException.class);
+    assertThatCode(
+            () ->
+                CharacterService.validate(
+                    new AppearanceDto("cream", null, "default", null, "moon-whale"),
+                    List.of("moon-whale")))
         .doesNotThrowAnyException();
   }
 }
