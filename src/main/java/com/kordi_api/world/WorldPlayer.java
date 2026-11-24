@@ -21,6 +21,10 @@ public record WorldPlayer(
     return new WorldPlayer(id, name, x, y, z, h, m, e, look);
   }
 
+  public WorldPlayer named(String name) {
+    return new WorldPlayer(id, name, x, y, z, h, m, e, look);
+  }
+
   public WorldPlayer dressed(WorldLook look) {
     return new WorldPlayer(id, name, x, y, z, h, m, e, look);
   }

@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.UnaryOperator;
 import org.springframework.stereotype.Component;
 
 /**
@@ -167,15 +168,25 @@ public class WorldLobby {
     return true;
   }
 
-  /** 모습 변경. 그 사람이 있는 채널을 돌려준다 (없으면 empty). */
-  public Optional<ChannelKey> dress(String id, WorldLook look) {
+  /** 모습 변경. 그 사람이 있는 채널과 바뀐 상태를 돌려준다 (없으면 empty). */
+  public Optional<Seat> dress(String id, WorldLook look) {
+    return update(id, p -> p.dressed(look));
+  }
+
+  /** 표시 이름 변경 (회원임이 밝혀지면 DB 닉네임으로). 입장 때와 같은 규칙으로 다듬는다. */
+  public Optional<Seat> rename(String id, String rawName) {
+    String name = sanitizeName(rawName);
+    return update(id, p -> p.named(name));
+  }
+
+  private Optional<Seat> update(String id, UnaryOperator<WorldPlayer> change) {
     ChannelKey channelNo = channelOf.get(id);
     Channel channel = channelNo == null ? null : channels.get(channelNo);
     if (channel == null) {
       return Optional.empty();
     }
-    WorldPlayer updated = channel.players.computeIfPresent(id, (k, p) -> p.dressed(look));
-    return updated == null ? Optional.empty() : Optional.of(channelNo);
+    WorldPlayer updated = channel.players.computeIfPresent(id, (k, p) -> change.apply(p));
+    return updated == null ? Optional.empty() : Optional.of(new Seat(channelNo, updated));
   }
 
   /**

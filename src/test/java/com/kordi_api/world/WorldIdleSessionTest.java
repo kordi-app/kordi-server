@@ -16,9 +16,9 @@ class WorldIdleSessionTest {
   }
 
   @Test
-  void 한_번이라도_보냈으면_오래_가만히_있어도_한참_뒤에야_유휴다() {
+  void 한_번이라도_보냈으면_마지막_메시지_뒤_90초까지는_유휴가_아니다() {
     Map<String, Object> attrs = new HashMap<>(Map.of("connectedAt", 0L, "lastSeen", 1_000L));
-    assertThat(WorldSocketHandler.isIdle(attrs, 10 * 60_000)).isFalse();
-    assertThat(WorldSocketHandler.isIdle(attrs, 31 * 60_000 + 1_000)).isTrue();
+    assertThat(WorldSocketHandler.isIdle(attrs, 1_000 + 89_000)).isFalse();
+    assertThat(WorldSocketHandler.isIdle(attrs, 1_000 + 91_000)).isTrue();
   }
 }

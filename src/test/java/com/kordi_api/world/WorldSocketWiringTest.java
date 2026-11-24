@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import com.kordi_api.character.service.CharacterService;
 import com.kordi_api.course.service.CourseRecordService;
 import com.kordi_api.global.store.InMemoryExpiringStoreFactory;
+import com.kordi_api.user.repository.UserRepository;
 import java.time.Clock;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -27,6 +28,7 @@ class WorldSocketWiringTest {
         .withBean(WorldTicketService.class)
         .withBean(CourseRecordService.class, () -> mock(CourseRecordService.class))
         .withBean(CharacterService.class, () -> mock(CharacterService.class))
+        .withBean(UserRepository.class, () -> mock(UserRepository.class))
         .withBean(WorldSocketHandler.class)
         .run(context -> assertThat(context).hasNotFailed().hasSingleBean(WorldSocketHandler.class));
   }
