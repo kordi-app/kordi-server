@@ -217,7 +217,7 @@ class WorldSocketHandlerTest {
 
   @Test
   void 찬_공은_같은_채널에_전해지고_나중에_온_사람은_입장할_때_받는다() throws Exception {
-    FakeSession alice = connect("1.1.1.1", "alice");
+    FakeSession alice = connect("1.1.1.1", "alice", 2);
     FakeSession bob = connect("2.2.2.2", "bob");
     handler.handleTextMessage(
         alice, new TextMessage("{\"x\":3,\"y\":0,\"z\":0,\"h\":0,\"m\":null,\"e\":null}"));
@@ -242,10 +242,54 @@ class WorldSocketHandlerTest {
     assertThat(balls.get(0).has("age")).isTrue();
   }
 
+  @Test
+  void 목걸이를_달라는_알림에는_이유와_함께_답한다() throws Exception {
+    FakeSession guest = connect("1.1.1.1", "guest");
+
+    handler.handleTextMessage(guest, new TextMessage("{\"t\":\"cave\"}"));
+
+    JsonNode reply = guest.last("cave");
+    assertThat(reply.path("ok").asBoolean()).isFalse();
+    assertThat(reply.path("reason").asString()).isEqualTo("guest");
+    assertThat(reply.path("retry").asBoolean()).isFalse();
+  }
+
+  @Test
+  void 버전을_알리지_않은_옛_클라이언트에게는_자기_공_소식을_돌려주지_않는다() throws Exception {
+    FakeSession old = connect("1.1.1.1", "old");
+    FakeSession bob = connect("2.2.2.2", "bob", 2);
+    handler.handleTextMessage(
+        old, new TextMessage("{\"x\":3,\"y\":0,\"z\":0,\"h\":0,\"m\":null,\"e\":null}"));
+
+    handler.handleTextMessage(
+        old,
+        new TextMessage(
+            "{\"t\":\"ball\",\"i\":0,\"x\":3.5,\"y\":0.6,\"z\":0.2,\"vx\":4,\"vy\":2,\"vz\":0}"));
+
+    awaitType(bob, "ball");
+    assertThat(old.count("ball")).isZero();
+    assertThat(old.last("welcome").path("v").asInt())
+        .isEqualTo(WorldSocketHandler.PROTOCOL_VERSION);
+  }
+
+  @Test
+  void 알린_버전은_숫자가_아니면_옛_클라이언트로_본다() {
+    assertThat(WorldSocketHandler.protocolOf(null)).isEqualTo(1);
+    assertThat(WorldSocketHandler.protocolOf("x")).isEqualTo(1);
+    assertThat(WorldSocketHandler.protocolOf("2")).isEqualTo(2);
+  }
+
   // --- helpers ---
 
   private FakeSession connect(String ip, String name) throws Exception {
-    FakeSession session = new FakeSession(ip, name);
+    return connect(ip, name, null);
+  }
+
+  /**
+   * @param version the protocol version the client announces (?v=), or null for an old client
+   */
+  private FakeSession connect(String ip, String name, Integer version) throws Exception {
+    FakeSession session = new FakeSession(ip, name, version);
     handler.afterConnectionEstablished(session);
     return session;
   }
@@ -276,9 +320,12 @@ class WorldSocketHandlerTest {
     volatile CountDownLatch block;
     volatile CloseStatus closedWith;
 
-    FakeSession(String ip, String name) {
+    final Integer version;
+
+    FakeSession(String ip, String name, Integer version) {
       this.ip = ip;
       this.name = name;
+      this.version = version;
     }
 
     List<String> types() {
@@ -335,7 +382,10 @@ class WorldSocketHandlerTest {
 
     @Override
     public URI getUri() {
-      return URI.create("ws://localhost/ws/world?region=hall&name=" + name);
+      return URI.create(
+          "ws://localhost/ws/world?region=hall&name="
+              + name
+              + (version == null ? "" : "&v=" + version));
     }
 
     @Override

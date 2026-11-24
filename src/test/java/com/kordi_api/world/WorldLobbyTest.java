@@ -2,7 +2,6 @@ package com.kordi_api.world;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class WorldLobbyTest {
@@ -236,7 +235,9 @@ class WorldLobbyTest {
     WorldMove below =
         new WorldMove(WorldLobby.WHALE_SUMMIT_X, 0.0, WorldLobby.WHALE_SUMMIT_Z, 0.0, null, null);
     String up = lobby.join("whale", "up").orElseThrow().player().id();
-    lobby.move(up, summit, 1_000);
+    WorldMove arrival = new WorldMove(0.0, 0.0, 14.0, 0.0, null, null);
+    lobby.move(up, arrival, 1_000);
+    walk(lobby, up, arrival, summit, 1_000); // 걸어서
     String low = lobby.join("whale", "low").orElseThrow().player().id();
     lobby.move(low, below, 1_000);
     String hall = lobby.join("hall", "hall").orElseThrow().player().id();
@@ -356,26 +357,154 @@ class WorldLobbyTest {
     assertThat(lobby.ballsIn(new WorldLobby.ChannelKey("neon", 1), 1_000)).isEmpty();
   }
 
-  @Test
-  void 동굴_제단에는_우주의_왕관을_쓰고_서_있어야_한다() {
-    WorldLobby lobby = new WorldLobby();
-    String crowned = lobby.join("cave", "a").orElseThrow().player().id();
-    String bare = lobby.join("cave", "b").orElseThrow().player().id();
-    String flame = lobby.join("cave", "c").orElseThrow().player().id();
-    String below = lobby.join("cave", "d").orElseThrow().player().id();
-    WorldMove onAltar = new WorldMove(0.5, 1.2, -52.0, 0.0, null, null);
-    lobby.dress(crowned, new WorldLook("cream", "star-crown", "default", null, null));
-    lobby.dress(flame, new WorldLook("cream", "flame-crown", "default", null, null));
-    lobby.dress(below, new WorldLook("cream", "star-crown", "default", null, null));
-    for (String id : List.of(crowned, bare, flame)) {
-      lobby.move(id, onAltar, 1_000);
-    }
-    lobby.move(below, new WorldMove(0.5, 0.0, -52.0, 0.0, null, null), 1_000);
+  private static WorldMove cave(double x, double y, double z) {
+    return new WorldMove(x, y, z, 0.0, null, null);
+  }
 
-    assertThat(lobby.atCaveAltarCrowned(crowned)).isTrue();
-    assertThat(lobby.atCaveAltarCrowned(bare)).isFalse();
-    assertThat(lobby.atCaveAltarCrowned(flame)).isFalse();
-    assertThat(lobby.atCaveAltarCrowned(below)).isFalse();
+  /** 걷기(초당 4칸)로, 실제 클라이언트처럼 0.1초마다 위치를 알리며 to까지 간다. 도착 시각을 돌려준다. */
+  private static long walk(WorldLobby lobby, String id, WorldMove from, WorldMove to, long at) {
+    double distance = Math.hypot(to.x() - from.x(), to.z() - from.z());
+    int steps = Math.max(1, (int) Math.ceil(distance / 0.4));
+    for (int i = 1; i <= steps; i++) {
+      double k = (double) i / steps;
+      lobby.move(
+          id,
+          new WorldMove(
+              from.x() + (to.x() - from.x()) * k,
+              from.y() + (to.y() - from.y()) * k,
+              from.z() + (to.z() - from.z()) * k,
+              0.0,
+              null,
+              null),
+          at + i * 100L);
+    }
+    return at + steps * 100L;
+  }
+
+  /** 입구에서 시작해 다리 건너편 쉼터를 지나 제단까지 걸어간다 */
+  private static void walkToAltar(WorldLobby lobby, String id, long from) {
+    lobby.move(id, cave(0, 0, 4), from);
+    long t = walk(lobby, id, cave(0, 0, 4), cave(0, 0, -38), from);
+    walk(lobby, id, cave(0, 0, -38), cave(0.5, 1.2, -51), t);
+  }
+
+  private static final WorldLook COSMIC =
+      new WorldLook("cream", "star-crown", "default", null, null);
+
+  @Test
+  void 동굴_제단은_왕관을_쓰고_다리를_건너_걸어온_사람만_인정한다() {
+    WorldLobby lobby = new WorldLobby();
+    String walker = lobby.join("cave", "a").orElseThrow().player().id();
+    String bare = lobby.join("cave", "b").orElseThrow().player().id();
+    lobby.dress(walker, COSMIC);
+    walkToAltar(lobby, walker, 1_000);
+    walkToAltar(lobby, bare, 1_000);
+
+    assertThat(lobby.checkAltar(walker)).isEqualTo(CaveClaim.OK);
+    assertThat(lobby.checkAltar(bare)).isEqualTo(CaveClaim.NO_CROWN);
+  }
+
+  @Test
+  void 켜지_않은_쉼터_앞으로는_되살아날_수_없다() {
+    WorldLobby lobby = new WorldLobby();
+    String id = lobby.join("cave", "a").orElseThrow().player().id();
+    lobby.dress(id, COSMIC);
+    lobby.move(id, cave(0, 0, 4), 1_000);
+    lobby.move(id, cave(0, 0, -36.8), 1_100); // 다리 건너편 쉼터 앞으로 "되살아남"
+    walk(lobby, id, cave(0, 0, -36.8), cave(0.5, 1.2, -51), 1_100);
+
+    assertThat(lobby.checkAltar(id)).isEqualTo(CaveClaim.MOVEMENT);
+  }
+
+  @Test
+  void 동굴에서_순간이동하면_인정하지_않는다() {
+    WorldLobby lobby = new WorldLobby();
+    String id = lobby.join("cave", "a").orElseThrow().player().id();
+    lobby.dress(id, COSMIC);
+    lobby.move(id, cave(0, 0, 4), 1_000);
+    lobby.move(id, cave(0, 0, -38), 1_100); // 42칸을 0.1초에
+    lobby.move(id, cave(0.5, 1.2, -51), 30_000);
+
+    assertThat(lobby.checkAltar(id)).isEqualTo(CaveClaim.MOVEMENT);
+  }
+
+  @Test
+  void 다리를_건너지_않고_제단에_가면_인정하지_않는다() {
+    WorldLobby lobby = new WorldLobby();
+    String id = lobby.join("cave", "a").orElseThrow().player().id();
+    lobby.dress(id, COSMIC);
+    lobby.move(id, cave(0, 0, 4), 1_000);
+    long t = walk(lobby, id, cave(0, 0, 4), cave(8, 0, -30), 1_000);
+    walk(lobby, id, cave(8, 0, -30), cave(0.5, 1.2, -51), t); // 체크포인트(0, -38)를 비켜 간 길
+
+    assertThat(lobby.checkAltar(id)).isEqualTo(CaveClaim.PATH);
+  }
+
+  @Test
+  void 끊겼던_연결이_풀리며_위치가_몰려_와도_정상으로_본다() {
+    WorldLobby lobby = new WorldLobby();
+    String id = lobby.join("cave", "a").orElseThrow().player().id();
+    lobby.dress(id, COSMIC);
+    lobby.move(id, cave(0, 0, 4), 1_000);
+    // 2초 동안 오지 않던 위치 20개가 한꺼번에 (걸은 거리 8칸)
+    for (int i = 1; i <= 20; i++) {
+      lobby.move(id, cave(0, 0, 4 - i * 0.4), 3_000 + i * 31L);
+    }
+    long t = walk(lobby, id, cave(0, 0, -4), cave(0, 0, -38), 3_700);
+    walk(lobby, id, cave(0, 0, -38), cave(0.5, 1.2, -51), t);
+
+    assertThat(lobby.checkAltar(id)).isEqualTo(CaveClaim.OK);
+  }
+
+  @Test
+  void 낭떠러지에서_쉼터로_되살아나는_건_순간이동이어도_괜찮다() {
+    WorldLobby lobby = new WorldLobby();
+    String id = lobby.join("cave", "a").orElseThrow().player().id();
+    lobby.dress(id, COSMIC);
+    lobby.move(id, cave(0, 0, 4), 1_000);
+    long t = walk(lobby, id, cave(0, 0, 4), cave(4, 0, -27), 1_000); // 다리 위
+    lobby.move(id, cave(0, 0, 4), t + 200); // 떨어져 입구로 (정해진 자리)
+    walkToAltar(lobby, id, t + 300);
+
+    assertThat(lobby.checkAltar(id)).isEqualTo(CaveClaim.OK);
+  }
+
+  @Test
+  void 제단에_막_올라섰는데_서버가_아는_위치가_아직_아래면_다시_물어볼_만하다() {
+    WorldLobby lobby = new WorldLobby();
+    String id = lobby.join("cave", "a").orElseThrow().player().id();
+    lobby.dress(id, COSMIC);
+    lobby.move(id, cave(0, 0, 4), 1_000);
+    long t = walk(lobby, id, cave(0, 0, 4), cave(0, 0, -38), 1_000);
+    walk(lobby, id, cave(0, 0, -38), cave(0.5, 0.9, -49), t); // 한 칸 아래 계단
+
+    assertThat(lobby.checkAltar(id)).isEqualTo(CaveClaim.NOT_ON_ALTAR);
+    assertThat(CaveClaim.NOT_ON_ALTAR.retryable()).isTrue();
+  }
+
+  @Test
+  void 꿈의_바다_꼭대기도_순간이동해_오면_인정하지_않는다() {
+    WorldLobby lobby = new WorldLobby();
+    String id = lobby.join("whale", "a").orElseThrow().player().id();
+    lobby.move(id, cave(0, 0, 14), 1_000);
+    lobby.move(
+        id,
+        new WorldMove(WorldLobby.WHALE_SUMMIT_X, 7.2, WorldLobby.WHALE_SUMMIT_Z, 0.0, null, null),
+        1_100);
+
+    assertThat(lobby.atWhaleSummit(id)).isFalse();
+  }
+
+  @Test
+  void 보상_지역에_들어오자마자_도착_지점이_아닌_곳에_있으면_인정하지_않는다() {
+    WorldLobby lobby = new WorldLobby();
+    String id = lobby.join("whale", "a").orElseThrow().player().id();
+    lobby.move(
+        id,
+        new WorldMove(WorldLobby.WHALE_SUMMIT_X, 7.2, WorldLobby.WHALE_SUMMIT_Z, 0.0, null, null),
+        1_000);
+
+    assertThat(lobby.atWhaleSummit(id)).isFalse();
   }
 
   @Test

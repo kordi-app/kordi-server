@@ -40,20 +40,19 @@ public class WorldLobby {
 
   /**
    * 홈 월드의 섬(그랜드 홀)이 가장 넓다: 클라이언트 widgets/piano-world/engine/island.ts ISLAND_BOUNDS(|x| ≤ 98, -70 ≤
-   * z ≤ 40)보다 여유 있게
+   * z ≤ 40)보다 여유 있게 (world-contract.json의 bounds)
    */
-  static final double MAX_ABS_X = 110;
+  static final double MAX_ABS_X = WorldContract.RULES.bounds().maxAbsX();
 
-  static final double MAX_ABS_Z = 85;
-  static final double MAX_Y = 40;
+  static final double MAX_ABS_Z = WorldContract.RULES.bounds().maxAbsZ();
+  static final double MAX_Y = WorldContract.RULES.bounds().maxY();
   static final int MIN_MIDI = 21;
   static final int MAX_MIDI = 108;
   static final String DEFAULT_NAME = "손님";
   static final String DEFAULT_REGION = "hall";
 
-  /** 클라이언트 widgets/piano-world/engine/regions.ts의 REGION_IDS와 짝 */
-  static final Set<String> REGIONS =
-      Set.of("hall", "neon", "cathedral", "lounge", "clouds", "night", "ruins", "whale", "cave");
+  /** 클라이언트 widgets/piano-world/engine/regions.ts의 REGION_IDS와 짝 (world-contract.json) */
+  static final Set<String> REGIONS = Set.copyOf(WorldContract.RULES.regions());
 
   /**
    * 꿈의 바다(whale) 꼭대기 섬: 클라이언트 engine/dream-sea.ts의 summit (x 2, z -38, 높이 7.2). 고래가 노래했다는 알림은 여기 서
@@ -61,11 +60,11 @@ public class WorldLobby {
    */
   static final String WHALE_REGION = "whale";
 
-  static final double WHALE_SUMMIT_X = 2;
+  static final double WHALE_SUMMIT_X = WorldContract.RULES.whale().x();
 
-  static final double WHALE_SUMMIT_Z = -38;
-  static final double WHALE_SUMMIT_REACH = 5;
-  static final double WHALE_SUMMIT_MIN_Y = 6.5;
+  static final double WHALE_SUMMIT_Z = WorldContract.RULES.whale().z();
+  static final double WHALE_SUMMIT_REACH = WorldContract.RULES.whale().reach();
+  static final double WHALE_SUMMIT_MIN_Y = WorldContract.RULES.whale().minY();
 
   /**
    * 별이 잠든 동굴(cave)의 제단: 클라이언트 engine/cave.ts의 ALTAR (x 0, z -52, 제단 단 꼭대기 높이 1.2). 황금 목걸이를 가져갔다는
@@ -73,10 +72,10 @@ public class WorldLobby {
    */
   static final String CAVE_REGION = "cave";
 
-  static final double CAVE_ALTAR_X = 0;
-  static final double CAVE_ALTAR_Z = -52;
-  static final double CAVE_ALTAR_REACH = 3;
-  static final double CAVE_ALTAR_MIN_Y = 1;
+  static final double CAVE_ALTAR_X = WorldContract.RULES.cave().altar().x();
+  static final double CAVE_ALTAR_Z = WorldContract.RULES.cave().altar().z();
+  static final double CAVE_ALTAR_REACH = WorldContract.RULES.cave().altar().reach();
+  static final double CAVE_ALTAR_MIN_Y = WorldContract.RULES.cave().altar().minY();
 
   /**
    * 자정의 종: 그랜드 홀 종탑 꼭대기의 종을 밤에 치면 그 채널에 하늘섬으로 가는 별 계단이 이만큼 열린다. 밤인지는 치는 사람의 시계로 클라이언트가 정한다 (섬의 하늘이
@@ -91,18 +90,18 @@ public class WorldLobby {
    * 클라이언트 engine/island.ts의 BELL(종탑 지붕 위, 지붕 높이 15.4). 위치는 최대 100ms 늦게 오므로 클라이언트의 BELL_REACH(2)보다
    * 넉넉하게 본다
    */
-  static final double BELL_X = 0;
+  static final double BELL_X = WorldContract.RULES.bell().x();
 
-  static final double BELL_Z = -46;
-  static final double BELL_REACH = 4;
-  static final double BELL_MIN_Y = 14;
+  static final double BELL_Z = WorldContract.RULES.bell().z();
+  static final double BELL_REACH = WorldContract.RULES.bell().reach();
+  static final double BELL_MIN_Y = WorldContract.RULES.bell().minY();
 
   /**
    * 음표 공이 있는 지역 (클라이언트 engine/ball.ts의 ballSpawns: 점프 코스와 꿈의 바다에는 없다). 지역마다 최대 {@value #MAX_BALLS}개
    */
-  static final Set<String> BALL_REGIONS = Set.of("hall", "neon", "cathedral", "lounge");
+  static final Set<String> BALL_REGIONS = Set.copyOf(WorldContract.RULES.balls().regions());
 
-  static final int MAX_BALLS = 2;
+  static final int MAX_BALLS = WorldContract.RULES.balls().max();
 
   /** 발로 찬 공이 낼 수 있는 속도보다 넉넉하게 (클라이언트 기준 보통 10 안팎) */
   static final double MAX_BALL_SPEED = 30;
@@ -122,7 +121,7 @@ public class WorldLobby {
   static final double BALL_SLACK = 3;
 
   /** 클라이언트 감정 표현 목록과 짝 */
-  static final Set<String> EMOTES = Set.of("wave", "clap", "dance", "sit");
+  static final Set<String> EMOTES = Set.copyOf(WorldContract.RULES.emotes());
 
   /** 지역 + 지역 안 채널 번호 */
   public record ChannelKey(String region, int number) {}
@@ -150,7 +149,30 @@ public class WorldLobby {
    */
   private record Ball(WorldBall state, String owner, long at) {}
 
+  /**
+   * 보상이 걸린 지역(꿈의 바다, 동굴)에 들어와서부터의 여정. 지역을 옮기면 소켓을 새로 열어 새 id가 되므로 한 id의 여정은 한 지역 안의 한 번의 방문이다.
+   *
+   * @param clean 들어온 뒤로 계속 사람이 낼 수 있는 움직임이었다 (정해진 되살아나는 자리로의 순간이동은 괜찮다)
+   * @param passedCheckpoint 동굴: 끊어진 다리 건너편의 별의 쉼터를 지났다
+   */
+  private static final class Journey {
+    final MovementBudget budget;
+    boolean clean = true;
+    boolean passedCheckpoint;
+
+    /** 동굴: 켠 별의 쉼터 (그 앞으로만 되살아날 수 있다) */
+    final boolean[] restsLit = new boolean[WorldContract.RULES.cave().rests().size()];
+
+    Journey(MovementBudget budget) {
+      this.budget = budget;
+    }
+  }
+
+  /** 여정을 보는 지역 */
+  static final Set<String> JOURNEY_REGIONS = Set.of(WHALE_REGION, CAVE_REGION);
+
   private final Map<ChannelKey, Channel> channels = new ConcurrentHashMap<>();
+  private final Map<String, Journey> journeys = new ConcurrentHashMap<>();
   private final Map<ChannelKey, Map<Integer, Ball>> balls = new ConcurrentHashMap<>();
   private final Map<String, Long> lastBallAt = new ConcurrentHashMap<>();
   private final Map<ChannelKey, Sky> skies = new ConcurrentHashMap<>();
@@ -207,9 +229,76 @@ public class WorldLobby {
         id,
         (key, seat) -> {
           lastMoveAt.put(id, nowMillis);
+          if (JOURNEY_REGIONS.contains(seat.region())) {
+            follow(id, seat.region(), updated, nowMillis);
+          }
           return seat;
         });
     return true;
+  }
+
+  /**
+   * 보상 지역에서의 여정을 따라간다: 사람이 낼 수 있는 움직임이었는지, 동굴이면 체크포인트를 지났는지. 낭떠러지에서 정해진 자리로 되살아나는 순간이동은 예산을 쓰지 않는다.
+   */
+  private void follow(String id, String region, WorldPlayer at, long nowMillis) {
+    Journey journey = journeys.get(id);
+    if (journey == null) {
+      // 여정은 도착 지점에서 시작한다: 들어오자마자 엉뚱한 곳에 있다고 하면 처음부터 믿지 않는다
+      journey =
+          new Journey(
+              new MovementBudget(at.x(), at.y(), at.z(), nowMillis, MovementBudget.JOURNEY_BURST));
+      WorldContract.Spot arrival =
+          CAVE_REGION.equals(region)
+              ? WorldContract.RULES.cave().arrival()
+              : WorldContract.RULES.whale().arrival();
+      journey.clean =
+          Math.hypot(at.x() - arrival.x(), at.z() - arrival.z())
+              <= WorldContract.RULES.movement().arrivalReach();
+      journeys.put(id, journey);
+    }
+    boolean cave = CAVE_REGION.equals(region);
+    if (cave && atRespawn(journey, at)) {
+      journey.budget.moveTo(at.x(), at.y(), at.z(), nowMillis);
+    } else if (!journey.budget.step(at.x(), at.y(), at.z(), nowMillis)) {
+      journey.clean = false;
+    }
+    if (!cave) {
+      return;
+    }
+    WorldContract.Cave rules = WorldContract.RULES.cave();
+    for (int i = 0; i < rules.rests().size(); i++) {
+      WorldContract.Spot rest = rules.rests().get(i);
+      if (Math.hypot(at.x() - rest.x(), at.z() - rest.z()) <= rules.restReach()) {
+        journey.restsLit[i] = true;
+      }
+    }
+    if (Math.hypot(at.x() - rules.checkpoint().x(), at.z() - rules.checkpoint().z())
+        <= rules.checkpoint().reach()) {
+      journey.passedCheckpoint = true;
+    }
+  }
+
+  /** 낭떠러지에서 돌아오는 자리인가: 입구, 또는 이미 켠 쉼터 앞 (켜지 않은 쉼터로는 되살아날 수 없다) */
+  private static boolean atRespawn(Journey journey, WorldPlayer at) {
+    WorldContract.Cave rules = WorldContract.RULES.cave();
+    double reach = WorldContract.RULES.movement().respawnReach();
+    if (Math.hypot(at.x() - rules.arrival().x(), at.z() - rules.arrival().z()) <= reach) {
+      return true;
+    }
+    for (int i = 0; i < rules.rests().size(); i++) {
+      WorldContract.Spot rest = rules.rests().get(i);
+      if (journey.restsLit[i]
+          && Math.hypot(at.x() - rest.x(), at.z() - (rest.z() + rules.respawnOffsetZ())) <= reach) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** 들어온 뒤로 사람이 낼 수 있는 움직임으로만 왔나 (보상 지역 밖이거나 아직 움직이지 않았으면 false) */
+  boolean journeyClean(String id) {
+    Journey journey = journeys.get(id);
+    return journey != null && journey.clean;
   }
 
   /** 모습 변경. 그 사람이 있는 채널과 바뀐 상태를 돌려준다 (없으면 empty). */
@@ -269,24 +358,37 @@ public class WorldLobby {
     Channel channel = channels.get(channelNo);
     WorldPlayer player = channel == null ? null : channel.players.get(id);
     return player != null
+        && journeyClean(id)
         && player.y() >= WHALE_SUMMIT_MIN_Y
         && Math.hypot(player.x() - WHALE_SUMMIT_X, player.z() - WHALE_SUMMIT_Z)
             <= WHALE_SUMMIT_REACH;
   }
 
-  /** 별이 잠든 동굴의 제단 위에, 우주의 왕관을 쓰고 서 있는지 (서버가 마지막으로 받은 위치와 모습 기준). */
-  public boolean atCaveAltarCrowned(String id) {
+  /**
+   * 제단의 목걸이를 가져갈 수 있는지와, 안 되면 왜인지 (서버가 마지막으로 받은 위치와 모습 기준). {@link CaveClaim#retryable()}인 이유는 잠시 뒤
+   * 다시 물어볼 만하다.
+   */
+  public CaveClaim checkAltar(String id) {
     ChannelKey channelNo = channelOf.get(id);
-    if (channelNo == null || !CAVE_REGION.equals(channelNo.region())) {
-      return false;
-    }
-    Channel channel = channels.get(channelNo);
+    Channel channel = channelNo == null ? null : channels.get(channelNo);
     WorldPlayer player = channel == null ? null : channel.players.get(id);
-    return player != null
-        && player.look() != null
-        && CharacterCatalog.COSMIC_CROWN.equals(player.look().hat())
-        && player.y() >= CAVE_ALTAR_MIN_Y
-        && Math.hypot(player.x() - CAVE_ALTAR_X, player.z() - CAVE_ALTAR_Z) <= CAVE_ALTAR_REACH;
+    if (player == null || !CAVE_REGION.equals(channelNo.region())) {
+      return CaveClaim.NOT_IN_CAVE;
+    }
+    if (player.look() == null || !CharacterCatalog.COSMIC_CROWN.equals(player.look().hat())) {
+      return CaveClaim.NO_CROWN;
+    }
+    Journey journey = journeys.get(id);
+    if (journey == null || !journey.clean) {
+      return CaveClaim.MOVEMENT;
+    }
+    if (!journey.passedCheckpoint) {
+      return CaveClaim.PATH;
+    }
+    boolean onAltar =
+        player.y() >= CAVE_ALTAR_MIN_Y
+            && Math.hypot(player.x() - CAVE_ALTAR_X, player.z() - CAVE_ALTAR_Z) <= CAVE_ALTAR_REACH;
+    return onAltar ? CaveClaim.OK : CaveClaim.NOT_ON_ALTAR;
   }
 
   /** 그 채널의 별 계단이 앞으로 열려 있을 시간 (닫혔으면 0). 나중에 들어온 사람에게 알려준다. */
@@ -381,6 +483,7 @@ public class WorldLobby {
   public synchronized Optional<ChannelKey> leave(String id) {
     ChannelKey channelNo = channelOf.remove(id);
     lastMoveAt.remove(id);
+    journeys.remove(id);
     for (int i = 0; i < MAX_BALLS; i++) {
       lastBallAt.remove(ballRateKey(id, i));
     }

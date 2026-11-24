@@ -43,15 +43,18 @@ import tools.jackson.databind.json.JsonMapper;
  *   <li>서버 → 클라이언트
  *       <ul>
  *         <li>{@code welcome}: 내 id, 지역·채널 번호, 같은 채널 접속자, 전체·지역별 접속자 수, 별 계단이 열려 있을 시간({@code sky},
- *             ms), 그 채널 음표 공들의 마지막 상태({@code balls}, {@link WorldBall.View})
+ *             ms), 그 채널 음표 공들의 마지막 상태({@code balls}, {@link WorldBall.View}), 서버의 프로토콜 버전({@code
+ *             v})
  *         <li>{@code join} / {@code leave}: 같은 채널 입·퇴장 (즉시)
  *         <li>{@code moves}: 같은 채널에서 움직인 사람들의 최신 위치 ({@value #TICK_MS}ms마다 묶어서)
  *         <li>{@code online}: 전체·지역별 접속자 수 ({@value #ONLINE_MS}ms마다)
  *         <li>{@code pet}: 펫을 새로 얻었다 ({@code item}). 그 사람에게만
  *         <li>{@code item}: 보상 액세서리를 새로 얻었다 ({@code item}, 동굴의 황금 목걸이). 그 사람에게만
+ *         <li>{@code cave}: 목걸이를 가져가겠다는 알림에 대한 답 ({@code ok}, 안 되면 {@code reason}과 다시 물어볼 만한지
+ *             {@code retry}, {@link CaveClaim}). 그 사람에게만
  *         <li>{@code bell}: 같은 채널 누군가 자정의 종을 쳤다 ({@code left}: 별 계단이 열려 있을 시간, ms). 친 사람에게는 보내지 않는다
- *         <li>{@code ball}: 같은 채널 누군가({@code by}) 음표 공을 찼거나, 찬 공이 멈췄다 ({@link WorldBall}). 보낸 사람에게도
- *             돌려주어, 모두가 서버가 받은 순서대로 맞춘다
+ *         <li>{@code ball}: 같은 채널 누군가({@code by}) 음표 공을 찼거나, 찬 공이 멈췄다 ({@link WorldBall}). 프로토콜 2
+ *             이상인 클라이언트에게는 보낸 사람에게도 돌려주어, 모두가 서버가 받은 순서대로 맞춘다
  *       </ul>
  *   <li>{@code look}: 같은 채널 누군가({@code id})의 표시 이름({@code name})과 꾸민 모습({@code look}, 없으면 null)이 바뀜
  *       (회원이 로그인을 밝혔을 때 이름은 DB 닉네임으로 바뀐다, 꾸미기를 저장했을 때). 자기 자신에게도 간다
@@ -92,6 +95,12 @@ public class WorldSocketHandler extends TextWebSocketHandler implements SmartLif
   /** 이 소켓에서 고래 알림을 이미 처리했다 (펫을 줬든 이미 가졌든): 같은 알림을 반복해 DB를 두드리지 못하게 */
   private static final String WHALE_DONE = "whaleDone";
 
+  /** 클라이언트가 접속할 때 알린 프로토콜 버전 (?v=, 없으면 1) */
+  private static final String PROTOCOL = "protocol";
+
+  /** 이 서버의 프로토콜 버전 (world-contract.json) */
+  static final int PROTOCOL_VERSION = WorldContract.RULES.protocol();
+
   /** 이 소켓에서 제단 알림을 이미 처리했다 (목걸이를 줬든 이미 가졌든) */
   private static final String CAVE_DONE = "caveDone";
 
@@ -124,10 +133,10 @@ public class WorldSocketHandler extends TextWebSocketHandler implements SmartLif
    * 꿈의 바다에 이만큼은 있어야 고래를 만났다고 믿는다: 다섯 음을 찾아 꼭대기까지 오르려면 걸어서도 몇 분은 걸린다. 지역을 옮기면 소켓을 새로 열므로 접속 시각이 곧 도착
    * 시각이다.
    */
-  static final long WHALE_MIN_STAY_MS = 60_000;
+  static final long WHALE_MIN_STAY_MS = WorldContract.RULES.whale().minStayMs();
 
   /** 동굴 입구에서 제단까지 걸어가는 데 걸리는 시간보다 짧게: 들어오자마자 가져갔다는 알림은 믿지 않는다 */
-  static final long CAVE_MIN_STAY_MS = 20_000;
+  static final long CAVE_MIN_STAY_MS = WorldContract.RULES.cave().minStayMs();
 
   private final WorldLobby lobby;
   private final CourseTimer courseTimer;
@@ -158,6 +167,7 @@ public class WorldSocketHandler extends TextWebSocketHandler implements SmartLif
     }
     rawSession.getAttributes().put(CLIENT_IP, ip);
     rawSession.getAttributes().put(CONNECTED_AT, now());
+    rawSession.getAttributes().put(PROTOCOL, protocolOf(queryParam(rawSession, "v")));
     var seat = lobby.join(queryParam(rawSession, "region"), queryParam(rawSession, "name"));
     if (seat.isEmpty()) {
       // 전체 정원 초과: 클라이언트는 이 코드로 혼자 모드 전환
@@ -184,7 +194,8 @@ public class WorldSocketHandler extends TextWebSocketHandler implements SmartLif
                 "online", lobby.totalPlayers(),
                 "regions", lobby.playersPerRegion(),
                 "sky", lobby.skyLeft(channel, now()),
-                "balls", lobby.ballsIn(channel, now()))));
+                "balls", lobby.ballsIn(channel, now()),
+                "v", PROTOCOL_VERSION)));
     broadcastToChannel(channel, Map.of("t", "join", "p", me), me.id());
   }
 
@@ -214,8 +225,16 @@ public class WorldSocketHandler extends TextWebSocketHandler implements SmartLif
         WorldBall ball = jsonMapper.treeToValue(node, WorldBall.class);
         lobby
             .moveBall(id, ball, now())
-            // 보낸 사람에게도 돌려준다: 거의 동시에 찬 공은 서버가 받은 순서가 정답이고, 모두 그 순서로 맞춘다
-            .ifPresent(channel -> broadcastToChannel(channel, ballPayload(ball, id), null));
+            .ifPresent(
+                channel -> {
+                  Map<String, Object> payload = ballPayload(ball, id);
+                  broadcastToChannel(channel, payload, id);
+                  // v2부터는 보낸 사람에게도 돌려준다: 거의 동시에 찬 공은 서버가 받은 순서가 정답이고, 모두 그 순서로
+                  // 맞춘다. 그 전 클라이언트는 돌아온 자기 소식을 남의 것으로 알고 공이 튀므로 보내지 않는다
+                  if (protocolOf(session) >= 2) {
+                    offer(id, payload);
+                  }
+                });
         return;
       }
       if ("whale".equals(type)) {
@@ -295,28 +314,58 @@ public class WorldSocketHandler extends TextWebSocketHandler implements SmartLif
    * 브라우저에 기억한다.
    */
   private void takeNecklace(WebSocketSession session, String id) {
-    Long userId = (Long) session.getAttributes().get(USER_ID);
-    Long connectedAt = (Long) session.getAttributes().get(CONNECTED_AT);
-    if (session.getAttributes().containsKey(CAVE_DONE)
-        || userId == null
-        || connectedAt == null
-        || now() - connectedAt < CAVE_MIN_STAY_MS
-        || !lobby.atCaveAltarCrowned(id)) {
-      return;
-    }
-    boolean taken;
-    try {
-      taken = characterService.grantReward(userId, CharacterCatalog.GOLD_NECKLACE);
-      session.getAttributes().put(CAVE_DONE, true);
-    } catch (RuntimeException e) {
-      log.warn("[World] necklace grant failed: {}", e.getMessage());
-      return;
-    }
+    NecklaceClaim claim = claimNecklace(session, id);
     WorldOutbox live = sessions.get(id);
-    if (taken && live != null) {
+    if (live == null) {
+      return;
+    }
+    if (claim.fresh()) {
+      // 처음 얻었을 때만: 모습 변경은 onAppearanceChanged가 채널에 퍼뜨린다
       live.offer(
           jsonMapper.writeValueAsString(
               Map.of("t", "item", "item", CharacterCatalog.GOLD_NECKLACE)));
+    }
+    CaveClaim result = claim.result();
+    live.offer(
+        jsonMapper.writeValueAsString(
+            Map.of(
+                "t",
+                "cave",
+                "ok",
+                result == CaveClaim.OK,
+                "reason",
+                result.reason(),
+                "retry",
+                result.retryable())));
+  }
+
+  /** 목걸이 요청의 결과와, 이번에 처음 얻었는지 */
+  private record NecklaceClaim(CaveClaim result, boolean fresh) {}
+
+  /** 줄 수 있으면 준다. DB에는 이 소켓에서 한 번만 간다 (그 뒤로는 "이미 처리함"). */
+  private NecklaceClaim claimNecklace(WebSocketSession session, String id) {
+    if (session.getAttributes().containsKey(CAVE_DONE)) {
+      return new NecklaceClaim(CaveClaim.OK, false);
+    }
+    Long userId = (Long) session.getAttributes().get(USER_ID);
+    if (userId == null) {
+      return new NecklaceClaim(CaveClaim.GUEST, false);
+    }
+    CaveClaim where = lobby.checkAltar(id);
+    if (where != CaveClaim.OK) {
+      return new NecklaceClaim(where, false);
+    }
+    Long connectedAt = (Long) session.getAttributes().get(CONNECTED_AT);
+    if (connectedAt == null || now() - connectedAt < CAVE_MIN_STAY_MS) {
+      return new NecklaceClaim(CaveClaim.TOO_SOON, false);
+    }
+    try {
+      boolean fresh = characterService.grantReward(userId, CharacterCatalog.GOLD_NECKLACE);
+      session.getAttributes().put(CAVE_DONE, true);
+      return new NecklaceClaim(CaveClaim.OK, fresh);
+    } catch (RuntimeException e) {
+      log.warn("[World] necklace grant failed: {}", e.getMessage());
+      return new NecklaceClaim(CaveClaim.ERROR, false);
     }
   }
 
@@ -600,6 +649,30 @@ public class WorldSocketHandler extends TextWebSocketHandler implements SmartLif
 
   private static long now() {
     return System.currentTimeMillis();
+  }
+
+  /** 클라이언트가 알린 프로토콜 버전: 숫자가 아니거나 없으면 1 (버전을 알리기 전의 클라이언트) */
+  static int protocolOf(String raw) {
+    if (raw == null) {
+      return 1;
+    }
+    try {
+      return Math.max(1, Integer.parseInt(raw));
+    } catch (NumberFormatException e) {
+      return 1;
+    }
+  }
+
+  private static int protocolOf(WebSocketSession session) {
+    return session.getAttributes().get(PROTOCOL) instanceof Integer v ? v : 1;
+  }
+
+  /** 한 사람에게만 보낸다 (떠났으면 아무것도 하지 않는다) */
+  private void offer(String playerId, Object payload) {
+    WorldOutbox outbox = sessions.get(playerId);
+    if (outbox != null) {
+      outbox.offer(jsonMapper.writeValueAsString(payload));
+    }
   }
 
   private static String queryParam(WebSocketSession session, String key) {
