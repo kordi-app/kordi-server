@@ -1,0 +1,4 @@
+# box-local state — never commit
+.env
+backups/
+.state/

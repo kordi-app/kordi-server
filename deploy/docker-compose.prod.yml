@@ -1,0 +1,126 @@
+# Kordi production stack: api + mysql + caddy on a single EC2 box.
+#
+# Sizing assumption: a 2 GB instance (e.g. t3.small / t4g.small) with nothing else on it.
+#   api    768m  -> JVM heap ~576m (Dockerfile: -XX:MaxRAMPercentage=75) + metaspace/threads/off-heap
+#   mysql  640m  -> innodb buffer pool 256M + per-connection buffers + performance_schema
+#   caddy  128m
+#   ~1.5 GB for containers, ~0.5 GB for the OS, docker daemon and page cache.
+# On a 1 GB box lower these (api 512m, mysql 384m, buffer pool 128M) and add swap.
+# On a 4 GB box roughly double api/mysql and raise the buffer pool to 1G.
+#
+# Every value comes from the .env next to this file (see .env.example — names only).
+# Run from this directory: docker compose -f docker-compose.prod.yml ... (or use deploy.sh).
+
+name: kordi
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  mysql:
+    # must match the major/minor version of the data already in the volume
+    image: mysql:${MYSQL_IMAGE_TAG:-8.0}
+    restart: unless-stopped
+    # no `ports:` — MySQL is reachable only from the internal network (api, and
+    # `docker compose exec mysql ...` for maintenance). Never publish 3306 on a public box.
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is required}
+      MYSQL_DATABASE: ${DB_NAME:?DB_NAME is required}
+      MYSQL_USER: ${DB_USERNAME:?DB_USERNAME is required}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      TZ: UTC
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --innodb-buffer-pool-size=${MYSQL_INNODB_BUFFER_POOL_SIZE:-256M}
+      - --max-connections=${MYSQL_MAX_CONNECTIONS:-60}
+    volumes:
+      # MYSQL_VOLUME must be the volume that already holds production data
+      # (`docker volume ls`) — otherwise MySQL starts EMPTY and Flyway builds a fresh schema.
+      - mysql-data:/var/lib/mysql
+    networks: [backend]
+    mem_limit: ${MYSQL_MEM_LIMIT:-640m}
+    healthcheck:
+      # credentials come from the container's own env; $$ keeps compose from interpolating
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h 127.0.0.1 -uroot --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    stop_grace_period: 60s
+    logging: *default-logging
+
+  api:
+    # deploy.sh sets KORDI_API_TAG to a commit SHA; `latest` is only the fallback
+    image: ghcr.io/kordi-app/kordi-api:${KORDI_API_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/${DB_NAME}
+      TZ: UTC
+    depends_on:
+      mysql:
+        condition: service_healthy
+    # no published port: Caddy reaches api:8080 over the internal network.
+    # For local debugging on the box only, bind to loopback: "127.0.0.1:8080:8080".
+    expose:
+      - "8080"
+    networks: [backend, edge]
+    mem_limit: ${API_MEM_LIMIT:-768m}
+    healthcheck:
+      # curl ships in eclipse-temurin:21-jre. API_HEALTH_PATH falls back to /health-check
+      # for images built before actuator was added.
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:8080${API_HEALTH_PATH:-/actuator/health} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      # Flyway migrations + Spring context; deploy.sh waits longer than this anyway
+      start_period: 90s
+    # Spring Boot graceful shutdown waits up to 30s (spring.lifecycle.timeout-per-shutdown-phase);
+    # give it margin before SIGKILL
+    stop_grace_period: 45s
+    logging: *default-logging
+
+  caddy:
+    image: caddy:${CADDY_IMAGE_TAG:-2}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?API_DOMAIN is required}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # certificates and ACME account — keep this volume, or Let's Encrypt rate limits bite
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+    networks: [edge]
+    mem_limit: ${CADDY_MEM_LIMIT:-128m}
+    healthcheck:
+      # admin API listens on localhost:2019 inside the container
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *default-logging
+
+networks:
+  # backend: api <-> mysql. internal: no route to the outside world from mysql.
+  backend:
+    internal: true
+  # edge: caddy <-> api (and api's outbound traffic, e.g. Google OAuth token calls)
+  edge: {}
+
+volumes:
+  mysql-data:
+    name: ${MYSQL_VOLUME:-kordi-mysql-data}
+  caddy-data:
+    name: ${CADDY_DATA_VOLUME:-kordi-caddy-data}
+  caddy-config:
+    name: ${CADDY_CONFIG_VOLUME:-kordi-caddy-config}

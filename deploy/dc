@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# docker compose for the production stack, with the release tag deploy.sh recorded.
+# Use this instead of plain `docker compose` so a manual `up -d` keeps the deployed tag
+# instead of silently switching to :latest.
+#   ./dc ps | ./dc logs -f api | ./dc up -d | ./dc exec mysql ...
+set -euo pipefail
+cd "$(dirname "$0")"
+
+args=(-f docker-compose.prod.yml --env-file .env)
+if [[ -f .state/release.env ]]; then
+  args+=(--env-file .state/release.env)
+fi
+exec docker compose "${args[@]}" "$@"

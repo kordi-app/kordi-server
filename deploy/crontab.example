@@ -1,0 +1,12 @@
+# Install with: crontab -e   (as the user that owns /opt/kordi and is in the docker group)
+# Times are the box's local zone (EC2 default: UTC). 18:30 UTC = 03:30 KST.
+#
+# BACKUP_S3_URI is optional; without it dumps stay only on this box's disk.
+# The instance role (or aws configure) needs s3:PutObject on that prefix.
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+30 18 * * * cd /opt/kordi && BACKUP_KEEP=14 BACKUP_S3_URI=s3://CHANGE-ME/kordi/mysql ./backup.sh nightly >>backups/cron.log 2>&1
+
+# keep the cron log itself small (weekly truncate)
+0 19 * * 0 cd /opt/kordi && tail -n 2000 backups/cron.log >backups/cron.log.tmp && mv backups/cron.log.tmp backups/cron.log

@@ -1,0 +1,56 @@
+# Kordi API reverse proxy (example). API_DOMAIN comes from the caddy container's env
+# (docker-compose.prod.yml passes it from .env). Caddy obtains/renews TLS certs automatically;
+# DNS for API_DOMAIN must point at this box and ports 80/443 must be open.
+#
+# The frontend (www.kordi.online) is on Vercel — this file only serves the API.
+{
+	# ACME account email (optional but recommended): set ACME_EMAIL in .env and pass it to caddy,
+	# then uncomment:
+	# email {$ACME_EMAIL}
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+
+	# The actuator should not be reachable from the internet beyond the health endpoint.
+	# (Docker healthchecks hit the container directly, not through Caddy.)
+	# handle blocks are mutually exclusive; the one without a matcher always runs last.
+	@actuator_private {
+		path /actuator/*
+		not path /actuator/health
+	}
+	handle @actuator_private {
+		respond 404
+	}
+
+	# WebSocket for the shared world. reverse_proxy upgrades WebSocket connections on its own;
+	# this block only exists so the path is explicit and long-lived connections aren't cut
+	# when Caddy reloads (stream_close_delay keeps them open for a while after a config reload).
+	handle /ws/world* {
+		reverse_proxy api:8080 {
+			stream_close_delay 5m
+		}
+	}
+
+	# --- Rate limiting for /oauth2/authorization/* -------------------------------------------
+	# Stock Caddy has NO rate limiting directive. Options:
+	#   1. Build Caddy with the third-party plugin github.com/mholt/caddy-ratelimit
+	#      (xcaddy build --with github.com/mholt/caddy-ratelimit, or a custom image FROM
+	#      caddy:2-builder), then add a `rate_limit` block for `path /oauth2/authorization/*`
+	#      keyed on {remote_host}. Follow the plugin README for exact syntax and the required
+	#      `order rate_limit before ...` global option — it is not part of core Caddy.
+	#   2. Put AWS WAF (ALB/CloudFront) or Cloudflare in front and add a rate-based rule for
+	#      that path.
+	#   3. Rate-limit in the application (e.g. a servlet filter / bucket4j).
+	# Until one of these is in place, /oauth2/authorization/* is not rate limited.
+	# ----------------------------------------------------------------------------------------
+
+	handle {
+		reverse_proxy api:8080
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
