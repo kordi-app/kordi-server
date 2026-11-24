@@ -85,7 +85,7 @@ class AuthServiceTest {
 
     given(repository.findByTokenForUpdate(h("old"))).willReturn(Optional.empty());
     given(repository.findByTokenForUpdate("old")).willReturn(Optional.empty());
-    given(repository.findByPreviousToken(h("old"))).willReturn(Optional.of(saved));
+    given(repository.findByPreviousTokenForUpdate(h("old"))).willReturn(Optional.of(saved));
     TokenResponse second = authService.reissueToken("old");
 
     assertThat(second.refreshToken()).isEqualTo(first.refreshToken());
@@ -98,7 +98,7 @@ class AuthServiceTest {
     Instant longAgo = Instant.now().minus(AuthService.ROTATION_GRACE_PERIOD).minusSeconds(1);
     saved.rotate(h("new"), Instant.now().plus(Duration.ofDays(1)), longAgo);
     given(repository.findByTokenForUpdate(anyString())).willReturn(Optional.empty());
-    given(repository.findByPreviousToken(h("old"))).willReturn(Optional.of(saved));
+    given(repository.findByPreviousTokenForUpdate(h("old"))).willReturn(Optional.of(saved));
 
     assertThatThrownBy(() -> authService.reissueToken("old")).isInstanceOf(CoreException.class);
     verify(repository).delete(saved);

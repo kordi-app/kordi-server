@@ -14,6 +14,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -65,8 +66,10 @@ public class AuthService {
         jwtTokenProvider.createAccessToken(user.getId(), user.getRole()), refreshToken);
   }
 
-  // 만료 토큰 삭제 후 예외를 던지므로, 삭제가 롤백되지 않도록 CoreException은 롤백 대상에서 제외
-  @Transactional(noRollbackFor = CoreException.class)
+  // 만료 토큰 삭제 후 예외를 던지므로, 삭제가 롤백되지 않도록 CoreException은 롤백 대상에서 제외.
+  // READ_COMMITTED: 잠금 조회가 찾은 행만 잠그고 빈 구간(gap)은 잠그지 않는다. REPEATABLE READ에서는 현재 토큰 조회가 빗나간 두
+  // 요청이 서로의 gap 잠금에 막혀(앞 요청의 새 토큰 쓰기 vs 뒤 요청의 행 잠금 대기) 교착에 빠진다.
+  @Transactional(noRollbackFor = CoreException.class, isolation = Isolation.READ_COMMITTED)
   public TokenResponse reissueToken(String refreshToken) {
     Instant now = clock.instant();
 
@@ -88,7 +91,9 @@ public class AuthService {
       return rotate(current.get(), now);
     }
 
-    var rotatedAway = refreshTokenRepository.findByPreviousToken(hashed);
+    // row-locked: parallel callers holding the same previous token queue up here, so the check of
+    // recentRotations below sees what the one before it did
+    var rotatedAway = refreshTokenRepository.findByPreviousTokenForUpdate(hashed);
     if (rotatedAway.isEmpty()) {
       throw new CoreException(CoreExceptionCode.INVALID_REFRESH_TOKEN);
     }
@@ -106,10 +111,15 @@ public class AuthService {
     if (recent.isPresent()) {
       return new TokenResponse(createAccessToken(saved), recent.get().refreshToken());
     }
-    // (that pair is gone — e.g. the server restarted in between): rotate once more for this caller
+    // (that pair is gone — e.g. the server restarted in between): rotate once more for this caller,
+    // and remember the new pair so the callers queued behind on the row lock get this same pair
+    // instead of each rotating again (last write would win and log the others out). Put before
+    // commit on purpose: the next caller can only read it after this commit releases the lock.
     String newRefreshToken = jwtTokenProvider.createRefreshToken();
     saved.rotateKeepingPrevious(TokenHasher.hash(newRefreshToken), refreshTokenExpiredAt(now));
-    return new TokenResponse(createAccessToken(saved), newRefreshToken);
+    TokenResponse tokens = new TokenResponse(createAccessToken(saved), newRefreshToken);
+    recentRotations.put(hashed, tokens, remainingGrace(saved, now));
+    return tokens;
   }
 
   /** 로그아웃: 로그인 상태면 그 유저의 세션을, 아니면(액세스 토큰 만료) 넘겨받은 리프레시 토큰의 세션을 끝낸다. 둘 다 없으면 할 일이 없다. */
@@ -138,6 +148,12 @@ public class AuthService {
     TokenResponse tokens = new TokenResponse(createAccessToken(saved), newRefreshToken);
     recentRotations.put(previousHash, tokens, ROTATION_GRACE_PERIOD);
     return tokens;
+  }
+
+  /** 유예 시간이 끝나는 시각까지만 보관 (그 뒤엔 직전 토큰 자체를 받아주지 않는다). */
+  private static Duration remainingGrace(RefreshToken saved, Instant now) {
+    Duration left = Duration.between(now, saved.getRotatedAt().plus(ROTATION_GRACE_PERIOD));
+    return left.isNegative() || left.isZero() ? Duration.ofMillis(1) : left;
   }
 
   private String createAccessToken(RefreshToken saved) {
