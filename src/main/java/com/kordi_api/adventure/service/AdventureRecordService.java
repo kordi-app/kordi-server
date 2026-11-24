@@ -13,11 +13,13 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 코드 모험 역대 랭킹 (물리친 몬스터 수, 동률이면 먼저 낸 사람이 위). */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AdventureRecordService {
@@ -43,7 +45,14 @@ public class AdventureRecordService {
         runService
             .finish(userId, request.runId())
             .orElseThrow(() -> new CoreException(CoreExceptionCode.INVALID_REQUEST));
-    request.validate(durationMs);
+    if (request.validate(durationMs) == AdventureRecordRequest.Verdict.SUSPICIOUS) {
+      // client-claimed count (see AdventureRecordRequest): kept, but leave a trail to review
+      log.warn(
+          "[AdventureSuspiciousRecord] userId={} defeated={} durationMs={}",
+          userId,
+          request.defeated(),
+          durationMs);
+    }
     return recordWriter.write(() -> save(userId, request.defeated(), durationMs));
   }
 
