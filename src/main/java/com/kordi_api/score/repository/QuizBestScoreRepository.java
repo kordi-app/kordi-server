@@ -4,10 +4,7 @@ import com.kordi_api.quiz.entity.Difficulty;
 import com.kordi_api.score.entity.QuizBestScore;
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
-import org.springframework.data.domain.Limit;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -22,11 +19,6 @@ public interface QuizBestScoreRepository extends JpaRepository<QuizBestScore, Lo
       @Param("userId") Long userId, @Param("difficulty") Difficulty difficulty);
 
   Optional<QuizBestScore> findByUserIdAndDifficulty(Long userId, Difficulty difficulty);
-
-  /** 난이도별 랭킹: 점수 내림차순, 동점이면 먼저 낸 기록이 위 (idx_quiz_best_scores_rank) */
-  @EntityGraph(attributePaths = "user")
-  List<QuizBestScore> findByDifficultyOrderByTotalScoreDescAchievedAtAsc(
-      Difficulty difficulty, Limit limit);
 
   /** 이 점수보다 위에 있는 다른 사람 수: 더 높거나, 같은데 먼저 냈다 (랭킹 목록과 같은 기준). +1 하면 순위 */
   @Query(

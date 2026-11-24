@@ -5,6 +5,7 @@ import com.kordi_api.course.dto.CourseRankingResponse;
 import com.kordi_api.course.dto.CourseResult;
 import com.kordi_api.course.entity.Course;
 import com.kordi_api.course.entity.CourseRecord;
+import com.kordi_api.course.repository.CourseRankingQueryRepository;
 import com.kordi_api.course.repository.CourseRecordRepository;
 import com.kordi_api.global.common.RecordWriter;
 import com.kordi_api.user.repository.UserRepository;
@@ -12,7 +13,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +27,7 @@ public class CourseRecordService {
   static final int RANKING_LIMIT = 10;
 
   private final CourseRecordRepository courseRecordRepository;
+  private final CourseRankingQueryRepository courseRankingQueryRepository;
   private final UserRepository userRepository;
   private final CharacterService characterService;
   private final RecordWriter recordWriter;
@@ -63,11 +64,12 @@ public class CourseRecordService {
     return new CourseResult(timeMs, record.getTimeMs(), rank, improved, null);
   }
 
+  /**
+   * @param friendsOf 이 유저와 수락된 친구만 (null이면 전체)
+   */
   @Transactional(readOnly = true)
-  public List<CourseRankingResponse> ranking(Course course) {
-    var records =
-        courseRecordRepository.findByCourseOrderByTimeMsAscAchievedAtAsc(
-            course, Limit.of(RANKING_LIMIT));
+  public List<CourseRankingResponse> ranking(Course course, Long friendsOf) {
+    var records = courseRankingQueryRepository.findRanking(course, friendsOf, RANKING_LIMIT);
     List<CourseRankingResponse> out = new ArrayList<>(records.size());
     for (int i = 0; i < records.size(); i++) {
       CourseRecord r = records.get(i);
