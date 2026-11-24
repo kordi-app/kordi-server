@@ -215,6 +215,33 @@ class WorldSocketHandlerTest {
     assertThat(handler.isRunning()).isFalse();
   }
 
+  @Test
+  void 찬_공은_같은_채널에_전해지고_나중에_온_사람은_입장할_때_받는다() throws Exception {
+    FakeSession alice = connect("1.1.1.1", "alice");
+    FakeSession bob = connect("2.2.2.2", "bob");
+    handler.handleTextMessage(
+        alice, new TextMessage("{\"x\":3,\"y\":0,\"z\":0,\"h\":0,\"m\":null,\"e\":null}"));
+
+    handler.handleTextMessage(
+        alice,
+        new TextMessage(
+            "{\"t\":\"ball\",\"i\":0,\"x\":3.5,\"y\":0.6,\"z\":0.2,\"vx\":4,\"vy\":2,\"vz\":0}"));
+
+    awaitType(bob, "ball");
+    JsonNode kick = bob.last("ball");
+    assertThat(kick.path("x").asDouble()).isEqualTo(3.5);
+    assertThat(kick.path("vx").asDouble()).isEqualTo(4.0);
+    assertThat(kick.path("by").asString()).isEqualTo(idOf(alice));
+    // 찬 사람도 같은 소식을 받는다: 거의 동시에 찬 공도 모두 서버가 받은 순서대로 맞춘다
+    assertThat(alice.last("ball").path("by").asString()).isEqualTo(idOf(alice));
+
+    FakeSession late = connect("3.3.3.3", "late");
+    JsonNode balls = late.last("welcome").path("balls");
+    assertThat(balls).hasSize(1);
+    assertThat(balls.get(0).path("x").asDouble()).isEqualTo(3.5);
+    assertThat(balls.get(0).has("age")).isTrue();
+  }
+
   // --- helpers ---
 
   private FakeSession connect(String ip, String name) throws Exception {

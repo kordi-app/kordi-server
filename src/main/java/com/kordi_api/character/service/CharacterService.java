@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 캐릭터 꾸미기. 보상 모자를 가졌는지는 따로 저장하지 않고 코스 기록에서 본다: 그 코스의 기록이 있으면(= 서버가 잰 완주를 한 적이 있으면) 열린 것. 코스와 상관없이
- * 얻는 아이템(펫)만 character_unlocks에 남긴다.
+ * 얻는 아이템(펫, 보상 액세서리)만 character_unlocks에 남긴다.
  */
 @Service
 @RequiredArgsConstructor
@@ -91,27 +91,32 @@ public class CharacterService {
   }
 
   /**
-   * 펫을 처음 얻었을 때: 기록을 남기고 바로 데리고 다니게 한다. 이미 가졌으면 아무것도 하지 않는다. 두 소켓이 동시에 받아도 유니크 제약에 걸린 쪽은 {@link
-   * RecordWriter}가 다시 실행해 "이미 가짐"으로 끝난다.
+   * 숨겨진 곳에서 얻는 보상(펫, 보상 액세서리)을 처음 얻었을 때: 기록을 남기고 바로 데리고 다니게(걸치게) 한다. 이미 가졌으면 아무것도 하지 않는다. 두 소켓이 동시에
+   * 받아도 유니크 제약에 걸린 쪽은 {@link RecordWriter}가 다시 실행해 "이미 가짐"으로 끝난다.
    *
    * @return 이번에 새로 얻었으면 true
    */
-  public boolean grantPet(Long userId, String pet) {
-    if (!CharacterCatalog.PETS.contains(pet)) {
-      throw new IllegalArgumentException("unknown pet: " + pet);
+  public boolean grantReward(Long userId, String item) {
+    boolean pet = CharacterCatalog.PETS.contains(item);
+    if (!pet && !CharacterCatalog.REWARD_ACCESSORIES.contains(item)) {
+      throw new IllegalArgumentException("unknown reward: " + item);
     }
     return recordWriter.write(
         () -> {
-          if (unlockRepository.existsByUserIdAndItem(userId, pet)) {
+          if (unlockRepository.existsByUserIdAndItem(userId, item)) {
             return false;
           }
           User user = findUser(userId);
-          unlockRepository.saveAndFlush(CharacterUnlock.of(user, pet));
+          unlockRepository.saveAndFlush(CharacterUnlock.of(user, item));
           CharacterAppearance appearance =
               appearanceRepository
                   .findForUpdate(userId)
                   .orElseGet(() -> appearanceRepository.save(CharacterAppearance.defaultFor(user)));
-          appearance.adopt(pet);
+          if (pet) {
+            appearance.adopt(item);
+          } else {
+            appearance.wearAccessory(item);
+          }
           events.publishEvent(new AppearanceChanged(userId, toDto(appearance)));
           return true;
         });
@@ -146,6 +151,11 @@ public class CharacterService {
     }
     if (request.pet() != null && !unlocked.contains(request.pet())) {
       throw new CoreException(CoreExceptionCode.FORBIDDEN); // 펫은 모두 보상
+    }
+    if (request.accessory() != null
+        && CharacterCatalog.REWARD_ACCESSORIES.contains(request.accessory())
+        && !unlocked.contains(request.accessory())) {
+      throw new CoreException(CoreExceptionCode.FORBIDDEN); // 아직 찾지 못한 보상 액세서리
     }
   }
 

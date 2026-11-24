@@ -1,5 +1,6 @@
 package com.kordi_api.world;
 
+import com.kordi_api.character.entity.CharacterCatalog;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -52,7 +53,7 @@ public class WorldLobby {
 
   /** 클라이언트 widgets/piano-world/engine/regions.ts의 REGION_IDS와 짝 */
   static final Set<String> REGIONS =
-      Set.of("hall", "neon", "cathedral", "lounge", "clouds", "night", "ruins", "whale");
+      Set.of("hall", "neon", "cathedral", "lounge", "clouds", "night", "ruins", "whale", "cave");
 
   /**
    * 꿈의 바다(whale) 꼭대기 섬: 클라이언트 engine/dream-sea.ts의 summit (x 2, z -38, 높이 7.2). 고래가 노래했다는 알림은 여기 서
@@ -65,6 +66,17 @@ public class WorldLobby {
   static final double WHALE_SUMMIT_Z = -38;
   static final double WHALE_SUMMIT_REACH = 5;
   static final double WHALE_SUMMIT_MIN_Y = 6.5;
+
+  /**
+   * 별이 잠든 동굴(cave)의 제단: 클라이언트 engine/cave.ts의 ALTAR (x 0, z -52, 제단 단 꼭대기 높이 1.2). 황금 목걸이를 가져갔다는
+   * 알림은 여기 서 있고 우주의 왕관을 쓴 사람만 믿는다
+   */
+  static final String CAVE_REGION = "cave";
+
+  static final double CAVE_ALTAR_X = 0;
+  static final double CAVE_ALTAR_Z = -52;
+  static final double CAVE_ALTAR_REACH = 3;
+  static final double CAVE_ALTAR_MIN_Y = 1;
 
   /**
    * 자정의 종: 그랜드 홀 종탑 꼭대기의 종을 밤에 치면 그 채널에 하늘섬으로 가는 별 계단이 이만큼 열린다. 밤인지는 치는 사람의 시계로 클라이언트가 정한다 (섬의 하늘이
@@ -84,6 +96,30 @@ public class WorldLobby {
   static final double BELL_Z = -46;
   static final double BELL_REACH = 4;
   static final double BELL_MIN_Y = 14;
+
+  /**
+   * 음표 공이 있는 지역 (클라이언트 engine/ball.ts의 ballSpawns: 점프 코스와 꿈의 바다에는 없다). 지역마다 최대 {@value #MAX_BALLS}개
+   */
+  static final Set<String> BALL_REGIONS = Set.of("hall", "neon", "cathedral", "lounge");
+
+  static final int MAX_BALLS = 2;
+
+  /** 발로 찬 공이 낼 수 있는 속도보다 넉넉하게 (클라이언트 기준 보통 10 안팎) */
+  static final double MAX_BALL_SPEED = 30;
+
+  /**
+   * 공을 찬 사람은 공 곁에 있어야 한다 (몸 반지름 0.42 + 공 반지름 0.35). 위치는 최대 100ms 늦게 오고, 찬 뒤 한 프레임 굴러간 상태가 오므로 넉넉하게
+   */
+  static final double BALL_REACH = 4;
+
+  /** 한 사람이 공 하나에 대해 소식을 보내는 최소 간격 (찰 때 한 번, 공이 멈추면 한 번). 공마다 따로 센다 */
+  static final long MIN_BALL_INTERVAL_MS = 100;
+
+  /**
+   * 공은 마지막으로 알려진 상태에서 굴러갈 수 있는 거리(수평 속력 × 지난 시간, 마찰과 벽은 줄이기만 한다)에 이만큼 더한 곳까지만 옮겨질 수 있다. 공을 멀리서 끌어오는
+   * 조작을 막는다
+   */
+  static final double BALL_SLACK = 3;
 
   /** 클라이언트 감정 표현 목록과 짝 */
   static final Set<String> EMOTES = Set.of("wave", "clap", "dance", "sit");
@@ -108,7 +144,15 @@ public class WorldLobby {
     long until;
   }
 
+  /**
+   * 채널의 공 하나: 마지막으로 받은 상태, 그걸 보낸 사람(공이 멈추면 선 자리를 알려줄 사람), 받은 시각. 채널과 따로 두어 아무도 없는 채널에서도 공이 그 자리에
+   * 남는다 (메모리에만 있어 서버가 다시 뜨면 처음 자리로 돌아간다).
+   */
+  private record Ball(WorldBall state, String owner, long at) {}
+
   private final Map<ChannelKey, Channel> channels = new ConcurrentHashMap<>();
+  private final Map<ChannelKey, Map<Integer, Ball>> balls = new ConcurrentHashMap<>();
+  private final Map<String, Long> lastBallAt = new ConcurrentHashMap<>();
   private final Map<ChannelKey, Sky> skies = new ConcurrentHashMap<>();
   private final Map<String, ChannelKey> channelOf = new ConcurrentHashMap<>();
   private final Map<String, Long> lastMoveAt = new ConcurrentHashMap<>();
@@ -230,6 +274,21 @@ public class WorldLobby {
             <= WHALE_SUMMIT_REACH;
   }
 
+  /** 별이 잠든 동굴의 제단 위에, 우주의 왕관을 쓰고 서 있는지 (서버가 마지막으로 받은 위치와 모습 기준). */
+  public boolean atCaveAltarCrowned(String id) {
+    ChannelKey channelNo = channelOf.get(id);
+    if (channelNo == null || !CAVE_REGION.equals(channelNo.region())) {
+      return false;
+    }
+    Channel channel = channels.get(channelNo);
+    WorldPlayer player = channel == null ? null : channel.players.get(id);
+    return player != null
+        && player.look() != null
+        && CharacterCatalog.COSMIC_CROWN.equals(player.look().hat())
+        && player.y() >= CAVE_ALTAR_MIN_Y
+        && Math.hypot(player.x() - CAVE_ALTAR_X, player.z() - CAVE_ALTAR_Z) <= CAVE_ALTAR_REACH;
+  }
+
   /** 그 채널의 별 계단이 앞으로 열려 있을 시간 (닫혔으면 0). 나중에 들어온 사람에게 알려준다. */
   public long skyLeft(ChannelKey channelNo, long nowMillis) {
     Sky sky = skies.get(channelNo);
@@ -245,10 +304,86 @@ public class WorldLobby {
     }
   }
 
+  /**
+   * 음표 공 소식. 굴러가는 공(찬 순간)은 공 곁에 선 사람만, 멈춘 공(선 자리)은 마지막으로 찬 사람만 알릴 수 있다. 받으면 채널의 공 상태를 바꾸고 그 채널을
+   * 돌려준다 (같은 채널에 전할 것). 유효하지 않거나 너무 잦으면 empty.
+   */
+  public Optional<ChannelKey> moveBall(String id, WorldBall ball, long nowMillis) {
+    ChannelKey channelNo = channelOf.get(id);
+    if (channelNo == null || !BALL_REGIONS.contains(channelNo.region()) || !isValid(ball)) {
+      return Optional.empty();
+    }
+    String rateKey = ballRateKey(id, ball.i());
+    Long last = lastBallAt.get(rateKey);
+    if (last != null && nowMillis - last < MIN_BALL_INTERVAL_MS) {
+      return Optional.empty();
+    }
+    Channel channel = channels.get(channelNo);
+    WorldPlayer player = channel == null ? null : channel.players.get(id);
+    if (player == null) {
+      return Optional.empty();
+    }
+    boolean resting = ball.resting();
+    if (!resting && Math.hypot(player.x() - ball.x(), player.z() - ball.z()) > BALL_REACH) {
+      return Optional.empty();
+    }
+    boolean[] taken = {false};
+    balls
+        .computeIfAbsent(channelNo, key -> new ConcurrentHashMap<>())
+        .compute(
+            ball.i(),
+            (key, current) -> {
+              if (resting && (current == null || !id.equals(current.owner()))) {
+                return current; // 찬 사람만 공이 선 자리를 정한다
+              }
+              if (current != null && !reachable(current, ball, nowMillis)) {
+                return current; // 공이 거기까지 굴러갈 수는 없다
+              }
+              taken[0] = true;
+              return new Ball(ball, id, nowMillis);
+            });
+    if (!taken[0]) {
+      return Optional.empty();
+    }
+    lastBallAt.put(rateKey, nowMillis);
+    return Optional.of(channelNo);
+  }
+
+  private static String ballRateKey(String id, int ball) {
+    return id + "#" + ball;
+  }
+
+  /** 마지막으로 알려진 상태에서 그 자리까지 굴러갈 수 있었나 */
+  private static boolean reachable(Ball current, WorldBall next, long nowMillis) {
+    WorldBall from = current.state();
+    double seconds = Math.max(0, nowMillis - current.at()) / 1000.0;
+    double rolled = Math.hypot(from.vx(), from.vz()) * seconds;
+    return Math.hypot(next.x() - from.x(), next.z() - from.z()) <= rolled + BALL_SLACK;
+  }
+
+  /** 그 채널 공들의 마지막 상태. 나중에 들어온 사람에게 알려준다 (한 번도 차지 않은 공은 처음 자리이므로 빠진다). */
+  public List<WorldBall.View> ballsIn(ChannelKey channelNo, long nowMillis) {
+    Map<Integer, Ball> inChannel = balls.get(channelNo);
+    if (inChannel == null) {
+      return List.of();
+    }
+    return inChannel.values().stream()
+        .map(
+            b -> {
+              WorldBall s = b.state();
+              return new WorldBall.View(
+                  s.i(), s.x(), s.y(), s.z(), s.vx(), s.vy(), s.vz(), nowMillis - b.at());
+            })
+        .toList();
+  }
+
   /** 퇴장. 떠난 사람이 있던 채널 번호를 돌려준다. */
   public synchronized Optional<ChannelKey> leave(String id) {
     ChannelKey channelNo = channelOf.remove(id);
     lastMoveAt.remove(id);
+    for (int i = 0; i < MAX_BALLS; i++) {
+      lastBallAt.remove(ballRateKey(id, i));
+    }
     if (channelNo == null) {
       return Optional.empty();
     }
@@ -325,6 +460,34 @@ public class WorldLobby {
     return cleaned.codePointCount(0, cleaned.length()) > MAX_NAME_LENGTH
         ? cleaned.substring(0, cleaned.offsetByCodePoints(0, MAX_NAME_LENGTH))
         : cleaned;
+  }
+
+  private static boolean isValid(WorldBall ball) {
+    if (ball == null
+        || ball.i() == null
+        || ball.x() == null
+        || ball.y() == null
+        || ball.z() == null
+        || ball.vx() == null
+        || ball.vy() == null
+        || ball.vz() == null) {
+      return false;
+    }
+    if (ball.i() < 0 || ball.i() >= MAX_BALLS) {
+      return false;
+    }
+    double[] values = {ball.x(), ball.y(), ball.z(), ball.vx(), ball.vy(), ball.vz()};
+    for (double value : values) {
+      if (!Double.isFinite(value)) {
+        return false;
+      }
+    }
+    return Math.abs(ball.x()) <= MAX_ABS_X
+        && Math.abs(ball.z()) <= MAX_ABS_Z
+        && ball.y() >= 0
+        && ball.y() <= MAX_Y
+        && Math.sqrt(ball.vx() * ball.vx() + ball.vy() * ball.vy() + ball.vz() * ball.vz())
+            <= MAX_BALL_SPEED;
   }
 
   private static boolean isValid(WorldMove move) {

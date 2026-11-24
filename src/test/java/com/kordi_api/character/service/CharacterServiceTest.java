@@ -72,4 +72,19 @@ class CharacterServiceTest {
                     List.of("moon-whale")))
         .doesNotThrowAnyException();
   }
+
+  @Test
+  void 황금_목걸이는_동굴에서_찾은_뒤에만_걸_수_있다() {
+    var necklace = new AppearanceDto("cream", null, "default", "gold-necklace", null);
+    assertThatThrownBy(() -> CharacterService.validate(necklace, List.of()))
+        .isInstanceOf(CoreException.class);
+    assertThatCode(() -> CharacterService.validate(necklace, List.of("gold-necklace")))
+        .doesNotThrowAnyException();
+    // 보통 액세서리는 그대로 자유롭게
+    assertThatCode(
+            () ->
+                CharacterService.validate(
+                    new AppearanceDto("cream", null, "default", "scarf", null), List.of()))
+        .doesNotThrowAnyException();
+  }
 }

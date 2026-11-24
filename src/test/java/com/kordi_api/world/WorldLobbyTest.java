@@ -2,6 +2,7 @@ package com.kordi_api.world;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class WorldLobbyTest {
@@ -256,5 +257,152 @@ class WorldLobbyTest {
 
     lobby.join("hall", "back");
     assertThat(lobby.skyLeft(hall(1), 3_000)).isEqualTo(WorldLobby.SKY_OPEN_MS - 1_000);
+  }
+
+  private static WorldBall kick(double x, double z) {
+    return new WorldBall(0, x, 0.6, z, 4.0, 2.0, 0.0);
+  }
+
+  private static WorldBall restAt(double x, double z) {
+    return new WorldBall(0, x, 0.6, z, 0.0, 0.0, 0.0);
+  }
+
+  @Test
+  void 공_곁에서_찬_공은_채널에_남아_나중에_온_사람도_받는다() {
+    WorldLobby lobby = new WorldLobby();
+    String a = lobby.join("hall", "a").orElseThrow().player().id();
+    lobby.move(a, at(3.0, null), 1_000);
+
+    assertThat(lobby.moveBall(a, kick(3.5, 0.2), 1_000)).contains(hall(1));
+    lobby.leave(a); // 아무도 없어도 공은 그 자리에
+
+    assertThat(lobby.ballsIn(hall(1), 3_500))
+        .singleElement()
+        .satisfies(
+            b -> {
+              assertThat(b.x()).isEqualTo(3.5);
+              assertThat(b.vx()).isEqualTo(4.0);
+              assertThat(b.age()).isEqualTo(2_500);
+            });
+  }
+
+  @Test
+  void 멀리서_찬_공은_무시한다() {
+    WorldLobby lobby = new WorldLobby();
+    String a = lobby.join("hall", "a").orElseThrow().player().id();
+    lobby.move(a, at(-20.0, null), 1_000);
+
+    assertThat(lobby.moveBall(a, kick(3.5, 0.2), 1_000)).isEmpty();
+    assertThat(lobby.ballsIn(hall(1), 1_000)).isEmpty();
+  }
+
+  @Test
+  void 멈춘_자리는_마지막으로_찬_사람만_정한다() {
+    WorldLobby lobby = new WorldLobby();
+    String a = lobby.join("hall", "a").orElseThrow().player().id();
+    String b = lobby.join("hall", "b").orElseThrow().player().id();
+    lobby.move(a, at(3.0, null), 1_000);
+    lobby.moveBall(a, kick(3.5, 0.2), 1_000);
+
+    assertThat(lobby.moveBall(b, restAt(40, 5), 2_000)).isEmpty();
+    assertThat(lobby.moveBall(a, restAt(9, 1), 5_000)).contains(hall(1));
+    assertThat(lobby.ballsIn(hall(1), 5_000))
+        .singleElement()
+        .satisfies(ball -> assertThat(ball.x()).isEqualTo(9.0));
+  }
+
+  @Test
+  void 공_번호_속도_지역이_맞지_않으면_무시한다() {
+    WorldLobby lobby = new WorldLobby();
+    String a = lobby.join("hall", "a").orElseThrow().player().id();
+    lobby.move(a, at(3.0, null), 1_000);
+
+    assertThat(
+            lobby.moveBall(
+                a, new WorldBall(WorldLobby.MAX_BALLS, 3.0, 0.6, 0.0, 1.0, 0.0, 0.0), 1_000))
+        .isEmpty();
+    assertThat(lobby.moveBall(a, new WorldBall(0, 3.0, 0.6, 0.0, 100.0, 0.0, 0.0), 1_000))
+        .isEmpty();
+    assertThat(lobby.moveBall(a, new WorldBall(0, 3.0, 0.6, 0.0, Double.NaN, 0.0, 0.0), 1_000))
+        .isEmpty();
+
+    String c = lobby.join("clouds", "c").orElseThrow().player().id();
+    lobby.move(c, at(3.0, null), 1_000);
+    assertThat(lobby.moveBall(c, kick(3.5, 0.2), 1_000)).isEmpty();
+  }
+
+  @Test
+  void 공_소식이_너무_잦으면_무시한다() {
+    WorldLobby lobby = new WorldLobby();
+    String a = lobby.join("hall", "a").orElseThrow().player().id();
+    lobby.move(a, at(3.0, null), 1_000);
+
+    assertThat(lobby.moveBall(a, kick(3.5, 0.2), 1_000)).isPresent();
+    assertThat(lobby.moveBall(a, kick(3.6, 0.2), 1_050)).isEmpty();
+    assertThat(lobby.moveBall(a, kick(3.6, 0.2), 1_000 + WorldLobby.MIN_BALL_INTERVAL_MS))
+        .isPresent();
+  }
+
+  @Test
+  void 채널마다_공이_따로다() {
+    WorldLobby lobby = new WorldLobby();
+    String a = lobby.join("hall", "a").orElseThrow().player().id();
+    String n = lobby.join("neon", "n").orElseThrow().player().id();
+    lobby.move(a, at(3.0, null), 1_000);
+    lobby.move(n, at(3.0, null), 1_000);
+    lobby.moveBall(a, kick(3.5, 0.2), 1_000);
+
+    assertThat(lobby.ballsIn(hall(1), 1_000)).hasSize(1);
+    assertThat(lobby.ballsIn(new WorldLobby.ChannelKey("neon", 1), 1_000)).isEmpty();
+  }
+
+  @Test
+  void 동굴_제단에는_우주의_왕관을_쓰고_서_있어야_한다() {
+    WorldLobby lobby = new WorldLobby();
+    String crowned = lobby.join("cave", "a").orElseThrow().player().id();
+    String bare = lobby.join("cave", "b").orElseThrow().player().id();
+    String flame = lobby.join("cave", "c").orElseThrow().player().id();
+    String below = lobby.join("cave", "d").orElseThrow().player().id();
+    WorldMove onAltar = new WorldMove(0.5, 1.2, -52.0, 0.0, null, null);
+    lobby.dress(crowned, new WorldLook("cream", "star-crown", "default", null, null));
+    lobby.dress(flame, new WorldLook("cream", "flame-crown", "default", null, null));
+    lobby.dress(below, new WorldLook("cream", "star-crown", "default", null, null));
+    for (String id : List.of(crowned, bare, flame)) {
+      lobby.move(id, onAltar, 1_000);
+    }
+    lobby.move(below, new WorldMove(0.5, 0.0, -52.0, 0.0, null, null), 1_000);
+
+    assertThat(lobby.atCaveAltarCrowned(crowned)).isTrue();
+    assertThat(lobby.atCaveAltarCrowned(bare)).isFalse();
+    assertThat(lobby.atCaveAltarCrowned(flame)).isFalse();
+    assertThat(lobby.atCaveAltarCrowned(below)).isFalse();
+  }
+
+  @Test
+  void 공은_굴러갈_수_없는_곳으로_끌어올_수_없다() {
+    WorldLobby lobby = new WorldLobby();
+    String a = lobby.join("hall", "a").orElseThrow().player().id();
+    String b = lobby.join("hall", "b").orElseThrow().player().id();
+    lobby.move(a, at(3.0, null), 1_000);
+    lobby.moveBall(a, kick(3.5, 0.2), 1_000); // 초속 4로 굴러간다
+    lobby.moveBall(a, restAt(9, 0.2), 4_000); // 3초 뒤 9에 멈췄다
+
+    // 멈춘 공에서 멀리 떨어진 곳에서 "찼다"고 해도 받지 않는다
+    lobby.move(b, at(30.0, null), 5_000);
+    assertThat(lobby.moveBall(b, kick(30.5, 0.2), 5_000)).isEmpty();
+    // 공 곁에서 차면 받는다
+    lobby.move(b, at(8.5, null), 6_000);
+    assertThat(lobby.moveBall(b, kick(9.2, 0.2), 6_000)).isPresent();
+  }
+
+  @Test
+  void 공마다_따로_간격을_센다() {
+    WorldLobby lobby = new WorldLobby();
+    String a = lobby.join("hall", "a").orElseThrow().player().id();
+    lobby.move(a, at(3.0, null), 1_000);
+
+    assertThat(lobby.moveBall(a, kick(3.5, 0.2), 1_000)).isPresent();
+    assertThat(lobby.moveBall(a, new WorldBall(1, 3.4, 0.6, 0.3, 1.0, 1.0, 0.0), 1_010))
+        .isPresent();
   }
 }

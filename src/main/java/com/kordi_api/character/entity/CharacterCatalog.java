@@ -8,7 +8,8 @@ import java.util.Set;
 /**
  * 캐릭터 꾸미기 아이템 목록. 클라이언트 entities/character/model/catalog.ts와 짝.
  *
- * <p>대부분은 처음부터 고를 수 있고, 일부 모자는 점프 코스를 완주해야 열린다(보상). 펫은 모두 보상이며 character_unlocks에 저장된다.
+ * <p>대부분은 처음부터 고를 수 있고, 일부 모자는 점프 코스를 완주해야 열린다(보상). 펫과 보상 액세서리는 숨겨진 곳에서 얻으며 character_unlocks에
+ * 저장된다.
  */
 public final class CharacterCatalog {
 
@@ -22,7 +23,17 @@ public final class CharacterCatalog {
   public static final Set<String> HATS =
       Set.of("crown", "star-crown", "flame-crown", "ribbon", "beret", "headphones", "flower");
   public static final Set<String> FACES = Set.of("default", "smile", "sparkle", "sleepy");
-  public static final Set<String> ACCESSORIES = Set.of("scarf", "bowtie", "glasses");
+
+  /** 우주의 왕관(밤 코스 보상)을 쓰고 들어가야 보이는, 별이 잠든 동굴 제단의 황금 목걸이 */
+  public static final String GOLD_NECKLACE = "gold-necklace";
+
+  public static final Set<String> ACCESSORIES = Set.of("scarf", "bowtie", "glasses", GOLD_NECKLACE);
+
+  /** 얻어야 쓸 수 있는 액세서리 */
+  public static final Set<String> REWARD_ACCESSORIES = Set.of(GOLD_NECKLACE);
+
+  /** 별이 잠든 동굴을 밝히는 모자: 밤 코스의 보상인 우주의 왕관 */
+  public static final String COSMIC_CROWN = "star-crown";
 
   /** 고양이만 아는 꿈의 바다에서 고래에게 노래를 돌려주면 따라오는 아기 달고래 */
   public static final String MOON_WHALE = "moon-whale";

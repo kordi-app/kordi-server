@@ -43,12 +43,15 @@ import tools.jackson.databind.json.JsonMapper;
  *   <li>서버 → 클라이언트
  *       <ul>
  *         <li>{@code welcome}: 내 id, 지역·채널 번호, 같은 채널 접속자, 전체·지역별 접속자 수, 별 계단이 열려 있을 시간({@code sky},
- *             ms)
+ *             ms), 그 채널 음표 공들의 마지막 상태({@code balls}, {@link WorldBall.View})
  *         <li>{@code join} / {@code leave}: 같은 채널 입·퇴장 (즉시)
  *         <li>{@code moves}: 같은 채널에서 움직인 사람들의 최신 위치 ({@value #TICK_MS}ms마다 묶어서)
  *         <li>{@code online}: 전체·지역별 접속자 수 ({@value #ONLINE_MS}ms마다)
  *         <li>{@code pet}: 펫을 새로 얻었다 ({@code item}). 그 사람에게만
+ *         <li>{@code item}: 보상 액세서리를 새로 얻었다 ({@code item}, 동굴의 황금 목걸이). 그 사람에게만
  *         <li>{@code bell}: 같은 채널 누군가 자정의 종을 쳤다 ({@code left}: 별 계단이 열려 있을 시간, ms). 친 사람에게는 보내지 않는다
+ *         <li>{@code ball}: 같은 채널 누군가({@code by}) 음표 공을 찼거나, 찬 공이 멈췄다 ({@link WorldBall}). 보낸 사람에게도
+ *             돌려주어, 모두가 서버가 받은 순서대로 맞춘다
  *       </ul>
  *   <li>{@code look}: 같은 채널 누군가({@code id})의 표시 이름({@code name})과 꾸민 모습({@code look}, 없으면 null)이 바뀜
  *       (회원이 로그인을 밝혔을 때 이름은 DB 닉네임으로 바뀐다, 꾸미기를 저장했을 때). 자기 자신에게도 간다
@@ -58,7 +61,9 @@ import tools.jackson.databind.json.JsonMapper;
  *         <li>{@link WorldMove} (x, y, z, h, m, e)
  *         <li>{@code {"t":"auth","ticket":...}}: 로그인 유저임을 밝힘 ({@link WorldTicketService})
  *         <li>{@code {"t":"bell"}}: 밤에 종탑의 종을 쳤다 ({@link WorldLobby#ringBell})
+ *         <li>{@code {"t":"ball",...}}: 음표 공을 찼다 / 내가 찬 공이 멈췄다 ({@link WorldLobby#moveBall})
  *         <li>{@code {"t":"whale"}}: 꿈의 바다 꼭대기에서 고래가 노래했다 → 회원이면 달고래 펫 ({@link #adoptWhale})
+ *         <li>{@code {"t":"cave"}}: 별이 잠든 동굴의 제단에서 목걸이를 가져갔다 → 회원이면 황금 목걸이 ({@link #takeNecklace})
  *         <li>{@code {"t":"ping"}}: 살아 있음 알림. 위치는 바뀔 때만 오므로 가만히 서 있는 클라이언트는 이것을 {@value
  *             #IDLE_TIMEOUT_MS}ms보다 충분히 자주(30초마다) 보내야 한다
  *       </ul>
@@ -86,6 +91,9 @@ public class WorldSocketHandler extends TextWebSocketHandler implements SmartLif
 
   /** 이 소켓에서 고래 알림을 이미 처리했다 (펫을 줬든 이미 가졌든): 같은 알림을 반복해 DB를 두드리지 못하게 */
   private static final String WHALE_DONE = "whaleDone";
+
+  /** 이 소켓에서 제단 알림을 이미 처리했다 (목걸이를 줬든 이미 가졌든) */
+  private static final String CAVE_DONE = "caveDone";
 
   /** 정상 클라이언트는 접속하자마자 자기 위치를 보낸다. 이 안에 아무것도 안 보내면 자리만 차지하는 연결로 보고 닫는다. */
   static final long FIRST_MESSAGE_TIMEOUT_MS = 30_000;
@@ -117,6 +125,9 @@ public class WorldSocketHandler extends TextWebSocketHandler implements SmartLif
    * 시각이다.
    */
   static final long WHALE_MIN_STAY_MS = 60_000;
+
+  /** 동굴 입구에서 제단까지 걸어가는 데 걸리는 시간보다 짧게: 들어오자마자 가져갔다는 알림은 믿지 않는다 */
+  static final long CAVE_MIN_STAY_MS = 20_000;
 
   private final WorldLobby lobby;
   private final CourseTimer courseTimer;
@@ -172,7 +183,8 @@ public class WorldSocketHandler extends TextWebSocketHandler implements SmartLif
                 "players", List.copyOf(lobby.playersIn(channel)),
                 "online", lobby.totalPlayers(),
                 "regions", lobby.playersPerRegion(),
-                "sky", lobby.skyLeft(channel, now()))));
+                "sky", lobby.skyLeft(channel, now()),
+                "balls", lobby.ballsIn(channel, now()))));
     broadcastToChannel(channel, Map.of("t", "join", "p", me), me.id());
   }
 
@@ -198,8 +210,20 @@ public class WorldSocketHandler extends TextWebSocketHandler implements SmartLif
                         bell.channel(), Map.of("t", "bell", "left", bell.openMs()), id));
         return;
       }
+      if ("ball".equals(type)) {
+        WorldBall ball = jsonMapper.treeToValue(node, WorldBall.class);
+        lobby
+            .moveBall(id, ball, now())
+            // 보낸 사람에게도 돌려준다: 거의 동시에 찬 공은 서버가 받은 순서가 정답이고, 모두 그 순서로 맞춘다
+            .ifPresent(channel -> broadcastToChannel(channel, ballPayload(ball, id), null));
+        return;
+      }
       if ("whale".equals(type)) {
         adoptWhale(session, id);
+        return;
+      }
+      if ("cave".equals(type)) {
+        takeNecklace(session, id);
         return;
       }
       if ("auth".equals(type)) {
@@ -226,6 +250,20 @@ public class WorldSocketHandler extends TextWebSocketHandler implements SmartLif
    * 고래가 노래했다는 알림: 회원이 꿈의 바다에 충분히 머물렀고 지금 꼭대기에 서 있으면 달고래 펫을 준다. 처음 얻었을 때만 그 사람에게 알리고, 모습 변경은 {@link
    * #onAppearanceChanged}가 채널에 퍼뜨린다. 비회원은 클라이언트가 브라우저에 기억한다.
    */
+  private static Map<String, Object> ballPayload(WorldBall ball, String by) {
+    var payload = new HashMap<String, Object>();
+    payload.put("t", "ball");
+    payload.put("by", by);
+    payload.put("i", ball.i());
+    payload.put("x", ball.x());
+    payload.put("y", ball.y());
+    payload.put("z", ball.z());
+    payload.put("vx", ball.vx());
+    payload.put("vy", ball.vy());
+    payload.put("vz", ball.vz());
+    return payload;
+  }
+
   private void adoptWhale(WebSocketSession session, String id) {
     Long userId = (Long) session.getAttributes().get(USER_ID);
     Long connectedAt = (Long) session.getAttributes().get(CONNECTED_AT);
@@ -238,7 +276,7 @@ public class WorldSocketHandler extends TextWebSocketHandler implements SmartLif
     }
     boolean adopted;
     try {
-      adopted = characterService.grantPet(userId, CharacterCatalog.MOON_WHALE);
+      adopted = characterService.grantReward(userId, CharacterCatalog.MOON_WHALE);
       session.getAttributes().put(WHALE_DONE, true);
     } catch (RuntimeException e) {
       log.warn("[World] pet grant failed: {}", e.getMessage());
@@ -248,6 +286,37 @@ public class WorldSocketHandler extends TextWebSocketHandler implements SmartLif
     if (adopted && live != null) {
       live.offer(
           jsonMapper.writeValueAsString(Map.of("t", "pet", "item", CharacterCatalog.MOON_WHALE)));
+    }
+  }
+
+  /**
+   * 제단의 황금 목걸이를 가져갔다는 알림: 회원이 동굴에 충분히 머물렀고 지금 우주의 왕관을 쓰고 제단 위에 서 있으면 목걸이를 준다(바로 걸어 준다). 처음 얻었을 때만 그
+   * 사람에게 {@code {"t":"item"}}으로 알리고, 모습 변경은 {@link #onAppearanceChanged}가 채널에 퍼뜨린다. 비회원은 클라이언트가
+   * 브라우저에 기억한다.
+   */
+  private void takeNecklace(WebSocketSession session, String id) {
+    Long userId = (Long) session.getAttributes().get(USER_ID);
+    Long connectedAt = (Long) session.getAttributes().get(CONNECTED_AT);
+    if (session.getAttributes().containsKey(CAVE_DONE)
+        || userId == null
+        || connectedAt == null
+        || now() - connectedAt < CAVE_MIN_STAY_MS
+        || !lobby.atCaveAltarCrowned(id)) {
+      return;
+    }
+    boolean taken;
+    try {
+      taken = characterService.grantReward(userId, CharacterCatalog.GOLD_NECKLACE);
+      session.getAttributes().put(CAVE_DONE, true);
+    } catch (RuntimeException e) {
+      log.warn("[World] necklace grant failed: {}", e.getMessage());
+      return;
+    }
+    WorldOutbox live = sessions.get(id);
+    if (taken && live != null) {
+      live.offer(
+          jsonMapper.writeValueAsString(
+              Map.of("t", "item", "item", CharacterCatalog.GOLD_NECKLACE)));
     }
   }
 

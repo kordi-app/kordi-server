@@ -64,4 +64,8 @@ public class CharacterAppearance extends BaseTimeEntity {
   public void adopt(String pet) {
     this.pet = pet;
   }
+
+  public void wearAccessory(String accessory) {
+    this.accessory = accessory;
+  }
 }
