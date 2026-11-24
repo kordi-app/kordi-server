@@ -53,11 +53,33 @@ public class WorldLobby {
   static final Set<String> REGIONS =
       Set.of("hall", "neon", "cathedral", "lounge", "clouds", "night", "ruins");
 
+  /**
+   * 자정의 종: 그랜드 홀 종탑 꼭대기의 종을 밤에 치면 그 채널에 하늘섬으로 가는 별 계단이 이만큼 열린다. 밤인지는 치는 사람의 시계로 클라이언트가 정한다 (섬의 하늘이
+   * 각자의 현지 시각을 따른다).
+   */
+  static final long SKY_OPEN_MS = 10 * 60_000;
+
+  /** 여러 사람이 연달아 쳐도 채널에 알리는 건 이 간격에 한 번 */
+  static final long BELL_COOLDOWN_MS = 5_000;
+
+  /**
+   * 클라이언트 engine/island.ts의 BELL(종탑 지붕 위, 지붕 높이 15.4). 위치는 최대 100ms 늦게 오므로 클라이언트의 BELL_REACH(2)보다
+   * 넉넉하게 본다
+   */
+  static final double BELL_X = 0;
+
+  static final double BELL_Z = -46;
+  static final double BELL_REACH = 4;
+  static final double BELL_MIN_Y = 14;
+
   /** 클라이언트 감정 표현 목록과 짝 */
   static final Set<String> EMOTES = Set.of("wave", "clap", "dance", "sit");
 
   /** 지역 + 지역 안 채널 번호 */
   public record ChannelKey(String region, int number) {}
+
+  /** 종이 울림: 그 채널과 별 계단이 열려 있을 시간 */
+  public record Bell(ChannelKey channel, long openMs) {}
 
   /** 입장 결과: 배정된 채널과 내 플레이어 상태 */
   public record Seat(ChannelKey channel, WorldPlayer player) {}
@@ -65,6 +87,8 @@ public class WorldLobby {
   private static final class Channel {
     final Map<String, WorldPlayer> players = new ConcurrentHashMap<>();
     final Set<String> dirty = ConcurrentHashMap.newKeySet();
+    long bellAt = Long.MIN_VALUE / 2;
+    long skyUntil;
   }
 
   private final Map<ChannelKey, Channel> channels = new ConcurrentHashMap<>();
@@ -135,6 +159,43 @@ public class WorldLobby {
     }
     WorldPlayer updated = channel.players.computeIfPresent(id, (k, p) -> p.dressed(look));
     return updated == null ? Optional.empty() : Optional.of(channelNo);
+  }
+
+  /**
+   * 자정의 종. 그랜드 홀에서 종 곁(서버가 마지막으로 받은 위치 기준)에 선 사람만 칠 수 있고, 채널마다 {@value #BELL_COOLDOWN_MS}ms에 한 번만
+   * 받는다. 받으면 별 계단이 열린 시간을 새로 잡는다.
+   */
+  public Optional<Bell> ringBell(String id, long nowMillis) {
+    ChannelKey channelNo = channelOf.get(id);
+    if (channelNo == null || !DEFAULT_REGION.equals(channelNo.region())) {
+      return Optional.empty();
+    }
+    Channel channel = channels.get(channelNo);
+    WorldPlayer player = channel == null ? null : channel.players.get(id);
+    if (player == null
+        || player.y() < BELL_MIN_Y
+        || Math.hypot(player.x() - BELL_X, player.z() - BELL_Z) > BELL_REACH) {
+      return Optional.empty();
+    }
+    synchronized (channel) {
+      if (nowMillis - channel.bellAt < BELL_COOLDOWN_MS) {
+        return Optional.empty();
+      }
+      channel.bellAt = nowMillis;
+      channel.skyUntil = nowMillis + SKY_OPEN_MS;
+    }
+    return Optional.of(new Bell(channelNo, SKY_OPEN_MS));
+  }
+
+  /** 그 채널의 별 계단이 앞으로 열려 있을 시간 (닫혔으면 0). 나중에 들어온 사람에게 알려준다. */
+  public long skyLeft(ChannelKey channelNo, long nowMillis) {
+    Channel channel = channels.get(channelNo);
+    if (channel == null) {
+      return 0;
+    }
+    synchronized (channel) {
+      return Math.max(0, channel.skyUntil - nowMillis);
+    }
   }
 
   /** 퇴장. 떠난 사람이 있던 채널 번호를 돌려준다. */

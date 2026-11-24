@@ -186,4 +186,44 @@ class WorldLobbyTest {
         .isEqualTo(look);
     assertThat(lobby.dress("nobody", look)).isEmpty();
   }
+
+  private static WorldMove atBell() {
+    return new WorldMove(WorldLobby.BELL_X + 1, 15.4, WorldLobby.BELL_Z, 0.0, null, null);
+  }
+
+  @Test
+  void 종_곁에서_치면_채널에_별_계단이_열린다() {
+    WorldLobby lobby = new WorldLobby();
+    String a = lobby.join("hall", "a").orElseThrow().player().id();
+    lobby.move(a, atBell(), 1_000);
+
+    assertThat(lobby.ringBell(a, 2_000))
+        .hasValueSatisfying(bell -> assertThat(bell.channel()).isEqualTo(hall(1)));
+    assertThat(lobby.skyLeft(hall(1), 2_000)).isEqualTo(WorldLobby.SKY_OPEN_MS);
+    assertThat(lobby.skyLeft(hall(1), 2_000 + WorldLobby.SKY_OPEN_MS + 1)).isZero();
+  }
+
+  @Test
+  void 종에서_멀거나_홀이_아니면_칠_수_없다() {
+    WorldLobby lobby = new WorldLobby();
+    String far = lobby.join("hall", "far").orElseThrow().player().id();
+    lobby.move(far, at(10.0, null), 1_000);
+    String neon = lobby.join("neon", "neon").orElseThrow().player().id();
+    lobby.move(neon, atBell(), 1_000);
+
+    assertThat(lobby.ringBell(far, 2_000)).isEmpty();
+    assertThat(lobby.ringBell(neon, 2_000)).isEmpty();
+    assertThat(lobby.skyLeft(hall(1), 2_000)).isZero();
+  }
+
+  @Test
+  void 연달아_치면_쿨다운_안에서는_한_번만_받는다() {
+    WorldLobby lobby = new WorldLobby();
+    String a = lobby.join("hall", "a").orElseThrow().player().id();
+    lobby.move(a, atBell(), 1_000);
+
+    assertThat(lobby.ringBell(a, 2_000)).isPresent();
+    assertThat(lobby.ringBell(a, 2_000 + WorldLobby.BELL_COOLDOWN_MS - 1)).isEmpty();
+    assertThat(lobby.ringBell(a, 2_000 + WorldLobby.BELL_COOLDOWN_MS)).isPresent();
+  }
 }

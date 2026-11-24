@@ -32,10 +32,12 @@ import tools.jackson.databind.json.JsonMapper;
  * <ul>
  *   <li>서버 → 클라이언트
  *       <ul>
- *         <li>{@code welcome}: 내 id, 지역·채널 번호, 같은 채널 접속자, 전체·지역별 접속자 수
+ *         <li>{@code welcome}: 내 id, 지역·채널 번호, 같은 채널 접속자, 전체·지역별 접속자 수, 별 계단이 열려 있을 시간({@code sky},
+ *             ms)
  *         <li>{@code join} / {@code leave}: 같은 채널 입·퇴장 (즉시)
  *         <li>{@code moves}: 같은 채널에서 움직인 사람들의 최신 위치 ({@value #TICK_MS}ms마다 묶어서)
  *         <li>{@code online}: 전체·지역별 접속자 수 ({@value #ONLINE_MS}ms마다)
+ *         <li>{@code bell}: 같은 채널 누군가 자정의 종을 쳤다 ({@code left}: 별 계단이 열려 있을 시간, ms). 친 사람에게는 보내지 않는다
  *       </ul>
  *   <li>{@code look}: 같은 채널 누군가의 꾸민 모습이 바뀜 (회원이 로그인을 밝혔을 때, 꾸미기를 저장했을 때)
  *   <li>{@code record}: 점프 코스 완주 기록 (서버가 잰 시간, 역대 순위, 저장 여부)
@@ -43,6 +45,7 @@ import tools.jackson.databind.json.JsonMapper;
  *       <ul>
  *         <li>{@link WorldMove} (x, y, z, h, m, e)
  *         <li>{@code {"t":"auth","ticket":...}}: 로그인 유저임을 밝힘 ({@link WorldTicketService})
+ *         <li>{@code {"t":"bell"}}: 밤에 종탑의 종을 쳤다 ({@link WorldLobby#ringBell})
  *       </ul>
  * </ul>
  *
@@ -114,7 +117,8 @@ public class WorldSocketHandler extends TextWebSocketHandler {
             "ch", channel.number(),
             "players", List.copyOf(lobby.playersIn(channel)),
             "online", lobby.totalPlayers(),
-            "regions", lobby.playersPerRegion()));
+            "regions", lobby.playersPerRegion(),
+            "sky", lobby.skyLeft(channel, now())));
     broadcastToChannel(channel, Map.of("t", "join", "p", me), me.id());
   }
 
@@ -127,7 +131,17 @@ public class WorldSocketHandler extends TextWebSocketHandler {
     session.getAttributes().put(LAST_SEEN, now());
     try {
       var node = jsonMapper.readTree(message.getPayload());
-      if ("auth".equals(node.path("t").asString(""))) {
+      String type = node.path("t").asString("");
+      if ("bell".equals(type)) {
+        lobby
+            .ringBell(id, now())
+            .ifPresent(
+                bell ->
+                    broadcastToChannel(
+                        bell.channel(), Map.of("t", "bell", "left", bell.openMs()), id));
+        return;
+      }
+      if ("auth".equals(type)) {
         ticketService
             .redeem(node.path("ticket").asString(null))
             .ifPresent(
