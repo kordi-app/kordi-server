@@ -46,6 +46,8 @@ public class ApiLoggingFilter extends OncePerRequestFilter {
   protected boolean shouldNotFilter(HttpServletRequest request) {
     String uri = request.getRequestURI();
     // health probes every few seconds would drown the real traffic
-    return uri.equals("/favicon.ico") || uri.equals("/health-check");
+    return uri.equals("/favicon.ico")
+        || uri.equals("/health-check")
+        || uri.startsWith("/actuator/health");
   }
 }

@@ -49,6 +49,11 @@ public class SecurityConfig {
     "/api/course-rankings",
     "/api/adventure/rankings",
     "/health-check",
+    // actuator: only health (status only, no details) and info are exposed at all
+    // (application.yaml)
+    "/actuator/health",
+    "/actuator/health/**",
+    "/actuator/info",
     "/ws/**"
   };
 

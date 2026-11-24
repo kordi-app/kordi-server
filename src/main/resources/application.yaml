@@ -50,6 +50,32 @@ server:
   # addresses count as proxies), so the app sees the real scheme (Secure cookies, https links)
   forward-headers-strategy: native
 
+# Actuator: only health and info go out over HTTP (public, see SecurityConfig). Health shows the
+# status alone — no component details, no versions, no connection info — and is DOWN when the DB is
+# unreachable (the db indicator is on by default). For the proxy / container probes:
+#   /actuator/health            overall (DB included)
+#   /actuator/health/liveness   the JVM is up (don't restart on a DB blip)
+#   /actuator/health/readiness  ready for traffic (includes the DB)
+# /health-check stays as it was (no DB) for existing probes. Metrics (JVM, Hikari, HTTP) are
+# collected but not exposed over HTTP.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState, db
+  info:
+    env:
+      enabled: false
+
 # OpenAPI spec at /v3/api-docs — off by default (production). It is not a public path either:
 # even when enabled it needs a signed-in user. The client's types are generated from a spec
 # the test suite writes to build/openapi.json (OpenApiSpecExportTest), not from a live server.

@@ -33,6 +33,8 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
 	implementation("org.springframework.boot:spring-boot-starter-websocket")
+	// /actuator/health (with DB) and /actuator/info only; see management.* in application.yaml
+	implementation("org.springframework.boot:spring-boot-starter-actuator")
 	// OpenAPI spec (/v3/api-docs) for client type generation; off unless API_DOCS_ENABLED=true
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-api:3.0.3")
 	implementation("io.jsonwebtoken:jjwt-api:0.12.6")
