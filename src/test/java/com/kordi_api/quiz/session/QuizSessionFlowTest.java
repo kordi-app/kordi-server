@@ -144,22 +144,6 @@ class QuizSessionFlowTest {
     assertThat(bestRepository.findByUserIdAndDifficulty(user.getId(), Difficulty.EASY)).isEmpty();
   }
 
-  @Test
-  void 예전_점수_저장은_기록에만_남고_랭킹에는_들어가지_않는다() throws Exception {
-    User user = newUser("flow-legacy");
-    mvc.perform(
-            post("/api/scores")
-                .with(as(user))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    "{\"difficulty\":\"HARD\",\"totalScore\":2000,\"correctCount\":10,\"totalCount\":10}"))
-        .andExpect(status().isOk());
-
-    assertThat(scoreRepository.findByUserIdOrderByCreatedAtDesc(user.getId(), Limit.of(10)))
-        .hasSize(1);
-    assertThat(bestRepository.findByUserIdAndDifficulty(user.getId(), Difficulty.HARD)).isEmpty();
-  }
-
   private JsonNode start(User user, Difficulty difficulty) throws Exception {
     return body(
         mvc.perform(

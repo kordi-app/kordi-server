@@ -20,11 +20,13 @@ public enum CoreExceptionCode {
   NOT_FOUND(HttpStatus.NOT_FOUND, 1006, "요청한 리소스를 찾을 수 없습니다."),
   METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, 1007, "지원하지 않는 HTTP 메서드입니다."),
   DATA_CONFLICT(HttpStatus.CONFLICT, 1008, "요청이 현재 데이터 상태와 충돌합니다."),
+  TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, 1009, "요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요."),
   INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, 1999, "서버 내부 오류가 발생했습니다."),
 
   // 인증 (2xxx)
   INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, 2001, "인증이 만료되었습니다."),
   INVALID_LOGIN_CODE(HttpStatus.UNAUTHORIZED, 2002, "로그인 코드가 유효하지 않거나 만료되었습니다."),
+  LOGIN_REQUIRED(HttpStatus.UNAUTHORIZED, 2003, "로그인이 필요합니다."),
 
   // 유저 (3xxx)
   USER_NOT_FOUND(HttpStatus.NOT_FOUND, 3001, "유저를 찾을 수 없습니다."),
