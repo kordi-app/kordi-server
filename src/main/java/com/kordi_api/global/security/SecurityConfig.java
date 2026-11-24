@@ -1,7 +1,9 @@
 package com.kordi_api.global.security;
 
 import com.kordi_api.global.security.jwt.JwtAuthenticationFilter;
+import com.kordi_api.global.security.oauth2.CookieOAuth2AuthorizationRequestRepository;
 import com.kordi_api.global.security.oauth2.CustomOAuth2UserService;
+import com.kordi_api.global.security.oauth2.NoOpOAuth2AuthorizedClientRepository;
 import com.kordi_api.global.security.oauth2.OAuth2FailureHandler;
 import com.kordi_api.global.security.oauth2.OAuth2RedirectUriCookieFilter;
 import com.kordi_api.global.security.oauth2.OAuth2SuccessHandler;
@@ -35,6 +37,7 @@ public class SecurityConfig {
   private final OAuth2SuccessHandler oAuth2SuccessHandler;
   private final OAuth2FailureHandler oAuth2FailureHandler;
   private final OAuth2RedirectUriCookieFilter oAuth2RedirectUriCookieFilter;
+  private final CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository;
 
   @Value("${app.cors.allowed-origins}")
   private List<String> allowedOrigins;
@@ -74,6 +77,12 @@ public class SecurityConfig {
         .oauth2Login(
             oauth2 ->
                 oauth2
+                    // state lives in a signed cookie, not an HttpSession: the login start is
+                    // public, and a session per hit would pile up in the heap
+                    .authorizationEndpoint(
+                        endpoint ->
+                            endpoint.authorizationRequestRepository(authorizationRequestRepository))
+                    .authorizedClientRepository(new NoOpOAuth2AuthorizedClientRepository())
                     .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
                     .successHandler(oAuth2SuccessHandler)
                     .failureHandler(oAuth2FailureHandler))
