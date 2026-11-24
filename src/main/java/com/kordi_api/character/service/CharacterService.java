@@ -62,7 +62,7 @@ public class CharacterService {
     validate(request, unlocked);
     CharacterAppearance appearance =
         appearanceRepository
-            .findByUserId(userId)
+            .findForUpdate(userId)
             .orElseGet(() -> appearanceRepository.save(CharacterAppearance.defaultFor(user)));
     appearance.change(
         request.body(), request.hat(), request.face(), request.accessory(), request.pet());
@@ -83,7 +83,7 @@ public class CharacterService {
     }
     CharacterAppearance appearance =
         appearanceRepository
-            .findByUserId(user.getId())
+            .findForUpdate(user.getId())
             .orElseGet(() -> appearanceRepository.save(CharacterAppearance.defaultFor(user)));
     appearance.wear(hat);
     events.publishEvent(new AppearanceChanged(user.getId(), toDto(appearance)));
@@ -109,7 +109,7 @@ public class CharacterService {
           unlockRepository.saveAndFlush(CharacterUnlock.of(user, pet));
           CharacterAppearance appearance =
               appearanceRepository
-                  .findByUserId(userId)
+                  .findForUpdate(userId)
                   .orElseGet(() -> appearanceRepository.save(CharacterAppearance.defaultFor(user)));
           appearance.adopt(pet);
           events.publishEvent(new AppearanceChanged(userId, toDto(appearance)));

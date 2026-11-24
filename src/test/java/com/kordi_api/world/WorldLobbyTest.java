@@ -245,4 +245,16 @@ class WorldLobbyTest {
     assertThat(lobby.atWhaleSummit(low)).isFalse();
     assertThat(lobby.atWhaleSummit(hall)).isFalse();
   }
+
+  @Test
+  void 혼자_종을_치고_나갔다_들어와도_별_계단은_열려_있다() {
+    WorldLobby lobby = new WorldLobby();
+    String a = lobby.join("hall", "a").orElseThrow().player().id();
+    lobby.move(a, atBell(), 1_000);
+    lobby.ringBell(a, 2_000);
+    lobby.leave(a); // 채널이 비어 사라진다
+
+    lobby.join("hall", "back");
+    assertThat(lobby.skyLeft(hall(1), 3_000)).isEqualTo(WorldLobby.SKY_OPEN_MS - 1_000);
+  }
 }

@@ -68,6 +68,9 @@ public class WorldSocketHandler extends TextWebSocketHandler {
   private static final String CONNECTED_AT = "connectedAt";
   private static final String LAST_SEEN = "lastSeen";
 
+  /** 이 소켓에서 고래 알림을 이미 처리했다 (펫을 줬든 이미 가졌든): 같은 알림을 반복해 DB를 두드리지 못하게 */
+  private static final String WHALE_DONE = "whaleDone";
+
   /** 정상 클라이언트는 접속하자마자 자기 위치를 보낸다. 이 안에 아무것도 안 보내면 자리만 차지하는 연결로 보고 닫는다. */
   static final long FIRST_MESSAGE_TIMEOUT_MS = 30_000;
 
@@ -181,7 +184,8 @@ public class WorldSocketHandler extends TextWebSocketHandler {
   private void adoptWhale(WebSocketSession session, String id) {
     Long userId = (Long) session.getAttributes().get(USER_ID);
     Long connectedAt = (Long) session.getAttributes().get(CONNECTED_AT);
-    if (userId == null
+    if (session.getAttributes().containsKey(WHALE_DONE)
+        || userId == null
         || connectedAt == null
         || now() - connectedAt < WHALE_MIN_STAY_MS
         || !lobby.atWhaleSummit(id)) {
@@ -190,6 +194,7 @@ public class WorldSocketHandler extends TextWebSocketHandler {
     boolean adopted;
     try {
       adopted = characterService.grantPet(userId, CharacterCatalog.MOON_WHALE);
+      session.getAttributes().put(WHALE_DONE, true);
     } catch (RuntimeException e) {
       log.warn("[World] pet grant failed: {}", e.getMessage());
       return;

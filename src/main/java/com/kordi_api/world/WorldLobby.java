@@ -57,6 +57,8 @@ public class WorldLobby {
    * 꿈의 바다(whale) 꼭대기 섬: 클라이언트 engine/dream-sea.ts의 summit (x 2, z -38, 높이 7.2). 고래가 노래했다는 알림은 여기 서
    * 있을 때만 믿는다
    */
+  static final String WHALE_REGION = "whale";
+
   static final double WHALE_SUMMIT_X = 2;
 
   static final double WHALE_SUMMIT_Z = -38;
@@ -97,11 +99,16 @@ public class WorldLobby {
   private static final class Channel {
     final Map<String, WorldPlayer> players = new ConcurrentHashMap<>();
     final Set<String> dirty = ConcurrentHashMap.newKeySet();
+  }
+
+  /** 채널의 자정 종 상태. 채널과 따로 두어, 잠깐 아무도 없던 채널(혼자 친 사람이 새로고침)도 열린 시간을 잃지 않는다. */
+  private static final class Sky {
     long bellAt = Long.MIN_VALUE / 2;
-    long skyUntil;
+    long until;
   }
 
   private final Map<ChannelKey, Channel> channels = new ConcurrentHashMap<>();
+  private final Map<ChannelKey, Sky> skies = new ConcurrentHashMap<>();
   private final Map<String, ChannelKey> channelOf = new ConcurrentHashMap<>();
   private final Map<String, Long> lastMoveAt = new ConcurrentHashMap<>();
   private final AtomicLong sequence = new AtomicLong();
@@ -187,12 +194,13 @@ public class WorldLobby {
         || Math.hypot(player.x() - BELL_X, player.z() - BELL_Z) > BELL_REACH) {
       return Optional.empty();
     }
-    synchronized (channel) {
-      if (nowMillis - channel.bellAt < BELL_COOLDOWN_MS) {
+    Sky sky = skies.computeIfAbsent(channelNo, key -> new Sky());
+    synchronized (sky) {
+      if (nowMillis - sky.bellAt < BELL_COOLDOWN_MS) {
         return Optional.empty();
       }
-      channel.bellAt = nowMillis;
-      channel.skyUntil = nowMillis + SKY_OPEN_MS;
+      sky.bellAt = nowMillis;
+      sky.until = nowMillis + SKY_OPEN_MS;
     }
     return Optional.of(new Bell(channelNo, SKY_OPEN_MS));
   }
@@ -200,7 +208,7 @@ public class WorldLobby {
   /** 꿈의 바다 꼭대기 섬에 서 있는지 (서버가 마지막으로 받은 위치 기준). */
   public boolean atWhaleSummit(String id) {
     ChannelKey channelNo = channelOf.get(id);
-    if (channelNo == null || !"whale".equals(channelNo.region())) {
+    if (channelNo == null || !WHALE_REGION.equals(channelNo.region())) {
       return false;
     }
     Channel channel = channels.get(channelNo);
@@ -213,12 +221,16 @@ public class WorldLobby {
 
   /** 그 채널의 별 계단이 앞으로 열려 있을 시간 (닫혔으면 0). 나중에 들어온 사람에게 알려준다. */
   public long skyLeft(ChannelKey channelNo, long nowMillis) {
-    Channel channel = channels.get(channelNo);
-    if (channel == null) {
+    Sky sky = skies.get(channelNo);
+    if (sky == null) {
       return 0;
     }
-    synchronized (channel) {
-      return Math.max(0, channel.skyUntil - nowMillis);
+    synchronized (sky) {
+      long left = sky.until - nowMillis;
+      if (left <= 0 && nowMillis - sky.bellAt >= BELL_COOLDOWN_MS) {
+        skies.remove(channelNo, sky); // 닫힌 지 오래: 정리
+      }
+      return Math.max(0, left);
     }
   }
 
