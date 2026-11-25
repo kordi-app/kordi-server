@@ -1,7 +1,7 @@
 {
   "$comment": "Rules the piano world's server enforces and its client is built to. This exact file lives in both repos: server src/main/resources/world-contract.json and client src/widgets/piano-world/engine/world-contract.json. The client's CI fails when they differ; change both together.",
   "protocol": 2,
-  "regions": ["hall", "neon", "cathedral", "lounge", "clouds", "night", "ruins", "whale", "cave"],
+  "regions": ["hall", "neon", "cathedral", "lounge", "clouds", "night", "ruins", "whale", "cave", "musicbox"],
   "emotes": ["wave", "clap", "dance", "sit"],
   "bounds": { "maxAbsX": 110, "maxAbsZ": 85, "maxY": 40 },
   "movement": { "maxHorizontalSpeed": 6, "maxRiseSpeed": 12, "burstSeconds": 0.6, "slack": 0.3, "journeyBurstSeconds": 3, "respawnReach": 1.5, "arrivalReach": 3 },
