@@ -15,13 +15,13 @@ public class WarpStoneController {
   private final WarpStoneService warpStoneService;
 
   @GetMapping
-  public ApiResponse<WarpStonesResponse> get(@LoginUser Long userId) {
+  public ApiResponse<WarpStonesResponse> getWarpStones(@LoginUser Long userId) {
     return ApiResponse.success(new WarpStonesResponse(warpStoneService.awake(userId)));
   }
 
   /** 깨운 워프석을 더한다 (이미 깨어 있는 것은 그대로) */
   @PutMapping
-  public ApiResponse<WarpStonesResponse> wake(
+  public ApiResponse<WarpStonesResponse> wakeWarpStones(
       @LoginUser Long userId, @Valid @RequestBody WarpStonesRequest request) {
     return ApiResponse.success(
         new WarpStonesResponse(warpStoneService.wake(userId, request.stones())));
