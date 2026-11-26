@@ -476,10 +476,22 @@ class WorldLobbyTest {
     lobby.dress(id, COSMIC);
     lobby.move(id, cave(0, 0, 4), 1_000);
     long t = walk(lobby, id, cave(0, 0, 4), cave(0, 0, -38), 1_000);
-    walk(lobby, id, cave(0, 0, -38), cave(0.5, 0.9, -49), t); // 한 칸 아래 계단
+    walk(lobby, id, cave(0, 0, -38), cave(0.5, 0.6, -49.2), t); // 두 칸 아래 계단
 
     assertThat(lobby.checkAltar(id)).isEqualTo(CaveClaim.NOT_ON_ALTAR);
     assertThat(CaveClaim.NOT_ON_ALTAR.retryable()).isTrue();
+  }
+
+  @Test
+  void 꼭대기_바로_아래_계단에서_받침대_곁이면_목걸이를_준다() {
+    WorldLobby lobby = new WorldLobby();
+    String id = lobby.join("cave", "a").orElseThrow().player().id();
+    lobby.dress(id, COSMIC);
+    lobby.move(id, cave(0, 0, 4), 1_000);
+    long t = walk(lobby, id, cave(0, 0, 4), cave(0, 0, -38), 1_000);
+    walk(lobby, id, cave(0, 0, -38), cave(0, 0.9, -50.1), t); // 세 번째 계단, 꼭대기 바로 앞
+
+    assertThat(lobby.checkAltar(id)).isEqualTo(CaveClaim.OK);
   }
 
   @Test

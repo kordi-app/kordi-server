@@ -31,11 +31,8 @@ class WorldContractTest {
   }
 
   @Test
-  void 체크포인트는_다리_건너편_쉼터이고_제단보다_앞이다() {
-    assertThat(rules.cave().rests())
-        .anyMatch(
-            r -> r.x() == rules.cave().checkpoint().x() && r.z() == rules.cave().checkpoint().z());
-    // 입구(남쪽, z가 크다)에서 제단(북쪽)으로 가는 길: 체크포인트는 그 사이
+  void 체크포인트는_제단보다_앞이다() {
+    // 입구(남쪽, z가 크다)에서 제단(북쪽)으로 가는 길: 체크포인트는 그 사이 (다리 건너편 좁은 길)
     assertThat(rules.cave().checkpoint().z()).isGreaterThan(rules.cave().altar().z());
   }
 }

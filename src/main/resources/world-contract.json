@@ -24,12 +24,10 @@
   "whale": { "arrival": { "x": 0, "z": 14 }, "x": 2, "z": -38, "reach": 5, "minY": 6.5, "minStayMs": 60000 },
   "cave": {
     "arrival": { "x": 0, "z": 4 },
-    "altar": { "x": 0, "z": -52, "reach": 3, "minY": 1 },
+    "altar": { "x": 0, "z": -52, "reach": 3, "minY": 0.85 },
     "minStayMs": 20000,
     "checkpoint": { "x": 0, "z": -38, "reach": 2.5 },
-    "rests": [
-      { "x": 0, "z": -38 }
-    ],
+    "rests": [],
     "restReach": 1.6,
     "respawnOffsetZ": 1.2
   }
