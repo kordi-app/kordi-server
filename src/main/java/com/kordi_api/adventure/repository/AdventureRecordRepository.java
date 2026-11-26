@@ -21,16 +21,21 @@ public interface AdventureRecordRepository extends JpaRepository<AdventureRecord
 
   Optional<AdventureRecord> findByUserId(Long userId);
 
+  /** 랭킹: 점수 높은 순, 같으면 먼저 낸 순. 점수제 이전 기록(0점)은 빠진다. */
   @EntityGraph(attributePaths = "user")
-  List<AdventureRecord> findAllByOrderByDefeatedDescAchievedAtAsc(Limit limit);
+  List<AdventureRecord> findAllByScoreGreaterThanOrderByScoreDescAchievedAtAsc(
+      int score, Limit limit);
 
-  /** 이 기록보다 위에 있는 다른 사람 수: 더 많이 물리쳤거나, 같은데 먼저 냈다 (랭킹 목록과 같은 기준). +1 하면 순위 */
+  /**
+   * 이 기록보다 위에 있는 다른 사람 수: 점수가 더 높거나, 같은데 먼저 냈다 (랭킹 목록과 같은 기준). +1 하면 순위. 랭킹에 없는 점수제 이전 기록(0점)은 세지
+   * 않는다 (0점 판이 그 기록들 뒤로 밀리지 않게).
+   */
   @Query(
       """
       select count(r) from AdventureRecord r
       where r.user.id <> :userId
-        and (r.defeated > :defeated or (r.defeated = :defeated and r.achievedAt < :at))
+        and r.score > 0
+        and (r.score > :score or (r.score = :score and r.achievedAt < :at))
       """)
-  long countAhead(
-      @Param("userId") Long userId, @Param("defeated") int defeated, @Param("at") Instant at);
+  long countAhead(@Param("userId") Long userId, @Param("score") int score, @Param("at") Instant at);
 }

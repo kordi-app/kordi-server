@@ -13,10 +13,15 @@ import com.kordi_api.global.exception.CoreExceptionCode;
  * <p>제대로 하려면 퀴즈 세션처럼 서버가 몬스터(코드)를 내고 채점해야 한다: 판을 시작하면 서버가 n번째 몬스터의 코드와 제한 시간을 정해 주고, 클라이언트는 몬스터마다 친
  * 음을 보내며, 서버가 맞았는지·제한 시간 안인지 판정해 물리친 수를 스스로 센다 (클라이언트는 수를 보내지 않는다).
  *
+ * <p>점수도 클라이언트가 주장하는 값이다. 한 마리당 점수는 판정 기본점(GOOD 100 ~ PERFECT 300) × 콤보 배율(최대 ×3) × 보스 배율(×3)이므로,
+ * 물리친 수로 가능한 범위({@link #MIN_SCORE_PER_MONSTER} ~ {@link #MAX_SCORE_PER_MONSTER})를 벗어나면 거절한다. 클라이언트
+ * rules.ts와 맞춰야 한다.
+ *
  * @param runId 판을 시작할 때 받은 id
  * @param defeated 물리친 몬스터 수
+ * @param score 이번 판 점수
  */
-public record AdventureRecordRequest(String runId, int defeated) {
+public record AdventureRecordRequest(String runId, int defeated, int score) {
 
   /** 하드 상한. 바닥 제한 시간(6초)·어려운 코드 위주 구간에서 이보다 오래 버티는 판은 현실적이지 않다. */
   public static final int MAX_DEFEATED = 500;
@@ -36,18 +41,26 @@ public record AdventureRecordRequest(String runId, int defeated) {
   /** 이만큼 넘게 물리친 판은 의심 기록으로 표시 (드문 기록은 사람이 한 번 들여다볼 수 있게) */
   public static final int SUSPICIOUS_DEFEATED = 150;
 
+  /** 한 마리 최소 점수: GOOD(100) × 콤보 없음 */
+  public static final int MIN_SCORE_PER_MONSTER = 100;
+
+  /** 한 마리 최대 점수: PERFECT(300) × 최대 콤보 배율(3) × 보스(3) */
+  public static final int MAX_SCORE_PER_MONSTER = 300 * 3 * 3;
+
   public enum Verdict {
     PLAUSIBLE,
     /** 받아들이되 로그로 남긴다 */
     SUSPICIOUS
   }
 
-  /** 범위와 개연성(서버가 잰 판 길이에 비해 너무 많이 물리친 경우) 검사. 불가능하면 INVALID_REQUEST. */
+  /** 범위와 개연성(서버가 잰 판 길이에 비해 너무 많이 물리친 경우, 물리친 수로 낼 수 없는 점수) 검사. 불가능하면 INVALID_REQUEST. */
   public Verdict validate(long durationMs) {
     boolean valid =
         defeated >= 0
             && defeated <= MAX_DEFEATED
-            && (defeated == 0 || INTRO_MS + defeated * MIN_MS_PER_MONSTER <= durationMs);
+            && (defeated == 0 || INTRO_MS + defeated * MIN_MS_PER_MONSTER <= durationMs)
+            && score >= (long) defeated * MIN_SCORE_PER_MONSTER
+            && score <= (long) defeated * MAX_SCORE_PER_MONSTER;
     if (!valid) {
       throw new CoreException(CoreExceptionCode.INVALID_REQUEST);
     }

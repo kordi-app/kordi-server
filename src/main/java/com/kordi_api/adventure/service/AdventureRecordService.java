@@ -18,7 +18,7 @@ import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 코드 모험 역대 랭킹 (물리친 몬스터 수, 동률이면 먼저 낸 사람이 위). */
+/** 코드 모험 역대 랭킹 (점수, 동률이면 먼저 낸 사람이 위). */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -37,7 +37,7 @@ public class AdventureRecordService {
   }
 
   /**
-   * 한 판 결과 반영. 판 길이는 서버가 잰 값. 첫 기록이거나 더 많이 물리쳤으면 저장한다 (0마리는 순위만 알려주고 저장하지 않음). 동시 첫 기록 경합은 {@link
+   * 한 판 결과 반영. 판 길이는 서버가 잰 값. 첫 기록이거나 점수가 더 높으면 저장한다 (0마리는 순위만 알려주고 저장하지 않음). 동시 첫 기록 경합은 {@link
    * RecordWriter}가 처리한다.
    */
   public AdventureResult submit(Long userId, AdventureRecordRequest request) {
@@ -48,25 +48,23 @@ public class AdventureRecordService {
     if (request.validate(durationMs) == AdventureRecordRequest.Verdict.SUSPICIOUS) {
       // client-claimed count (see AdventureRecordRequest): kept, but leave a trail to review
       log.warn(
-          "[AdventureSuspiciousRecord] userId={} defeated={} durationMs={}",
+          "[AdventureSuspiciousRecord] userId={} defeated={} score={} durationMs={}",
           userId,
           request.defeated(),
+          request.score(),
           durationMs);
     }
-    return recordWriter.write(() -> save(userId, request.defeated(), durationMs));
+    return recordWriter.write(() -> save(userId, request.score(), request.defeated(), durationMs));
   }
 
-  private AdventureResult save(Long userId, int defeated, long durationMs) {
+  private AdventureResult save(Long userId, int score, int defeated, long durationMs) {
     Instant now = Instant.now();
-    long rank = adventureRecordRepository.countAhead(userId, defeated, now) + 1;
+    long rank = adventureRecordRepository.countAhead(userId, score, now) + 1;
     if (defeated == 0) {
       // nothing beaten: tell them where it stands, but don't put an empty run on the board
       int best =
-          adventureRecordRepository
-              .findByUserId(userId)
-              .map(AdventureRecord::getDefeated)
-              .orElse(0);
-      return new AdventureResult(0, best, rank, false);
+          adventureRecordRepository.findByUserId(userId).map(AdventureRecord::getScore).orElse(0);
+      return new AdventureResult(0, 0, best, rank, false);
     }
 
     var existing = adventureRecordRepository.findForUpdate(userId);
@@ -76,25 +74,29 @@ public class AdventureRecordService {
               .findById(userId)
               .orElseThrow(() -> new CoreException(CoreExceptionCode.USER_NOT_FOUND));
       adventureRecordRepository.saveAndFlush(
-          AdventureRecord.first(user, defeated, durationMs, now));
-      return new AdventureResult(defeated, defeated, rank, true);
+          AdventureRecord.first(user, score, defeated, durationMs, now));
+      return new AdventureResult(score, defeated, score, rank, true);
     }
     AdventureRecord record = existing.get();
-    boolean improved = record.improve(defeated, durationMs, now);
-    return new AdventureResult(defeated, record.getDefeated(), rank, improved);
+    boolean improved = record.improve(score, defeated, durationMs, now);
+    return new AdventureResult(score, defeated, record.getScore(), rank, improved);
   }
 
   @Transactional(readOnly = true)
   public List<AdventureRankingResponse> ranking() {
     var records =
-        adventureRecordRepository.findAllByOrderByDefeatedDescAchievedAtAsc(
-            Limit.of(RANKING_LIMIT));
+        adventureRecordRepository.findAllByScoreGreaterThanOrderByScoreDescAchievedAtAsc(
+            0, Limit.of(RANKING_LIMIT));
     List<AdventureRankingResponse> out = new ArrayList<>(records.size());
     for (int i = 0; i < records.size(); i++) {
       AdventureRecord r = records.get(i);
       out.add(
           new AdventureRankingResponse(
-              i + 1, r.getUser().getNickname(), r.getUser().getProfileImageUrl(), r.getDefeated()));
+              i + 1,
+              r.getUser().getNickname(),
+              r.getUser().getProfileImageUrl(),
+              r.getScore(),
+              r.getDefeated()));
     }
     return out;
   }
