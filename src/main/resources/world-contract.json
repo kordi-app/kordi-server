@@ -19,6 +19,7 @@
       "ruins": { "goalY": 24.8, "minMillis": 17000 }
     }
   },
+  "warpStones": { "stones": ["plaza", "drums", "tower", "pipes", "falls"], "alwaysAwake": ["plaza"] },
   "bell": { "x": 0, "z": -46, "reach": 4, "minY": 14 },
   "whale": { "arrival": { "x": 0, "z": 14 }, "x": 2, "z": -38, "reach": 5, "minY": 6.5, "minStayMs": 60000 },
   "cave": {

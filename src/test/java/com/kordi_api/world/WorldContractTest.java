@@ -25,6 +25,12 @@ class WorldContractTest {
   }
 
   @Test
+  void 처음부터_깨어_있는_워프석은_있는_워프석이다() {
+    assertThat(rules.warpStones().stones()).containsAll(rules.warpStones().alwaysAwake());
+    assertThat(rules.warpStones().alwaysAwake()).isNotEmpty();
+  }
+
+  @Test
   void 체크포인트는_다리_건너편_쉼터이고_제단보다_앞이다() {
     assertThat(rules.cave().rests())
         .anyMatch(

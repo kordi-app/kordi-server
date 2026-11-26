@@ -24,9 +24,18 @@ public record WorldContract(
     Movement movement,
     Balls balls,
     CourseRules course,
+    WarpStones warpStones,
     Bell bell,
     Whale whale,
     Cave cave) {
+
+  /**
+   * 섬의 워프석 (WarpStoneService)
+   *
+   * @param stones 있는 워프석 전부
+   * @param alwaysAwake 처음부터 깨어 있는 것 (돌아갈 곳이 늘 하나는 있도록): 저장하지 않고 목록에 늘 넣는다
+   */
+  public record WarpStones(List<String> stones, List<String> alwaysAwake) {}
 
   /** 위치로 받아 주는 범위 (가장 넓은 지역인 섬보다 여유 있게) */
   public record Bounds(double maxAbsX, double maxAbsZ, double maxY) {}
