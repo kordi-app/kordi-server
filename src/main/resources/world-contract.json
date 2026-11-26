@@ -28,8 +28,7 @@
     "minStayMs": 20000,
     "checkpoint": { "x": 0, "z": -38, "reach": 2.5 },
     "rests": [
-      { "x": 0, "z": -38 },
-      { "x": 0, "z": -4 }
+      { "x": 0, "z": -38 }
     ],
     "restReach": 1.6,
     "respawnOffsetZ": 1.2
